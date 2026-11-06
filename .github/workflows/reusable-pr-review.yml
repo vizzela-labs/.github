@@ -12,6 +12,8 @@ on:
     secrets:
       claude_code_oauth_token:
         required: false
+      # Não usados mais (o review sai pelo App oficial do Claude). Mantidos só para
+      # não quebrar os pr-padrao.yml já instalados, que ainda os repassam.
       app_id:
         required: false
       app_private_key:
@@ -37,23 +39,13 @@ jobs:
         id: guard
         env:
           CLAUDE_TOKEN: ${{ secrets.claude_code_oauth_token }}
-          APP_ID: ${{ secrets.app_id }}
-          APP_KEY: ${{ secrets.app_private_key }}
         run: |
-          if [ -z "$CLAUDE_TOKEN" ] || [ -z "$APP_ID" ] || [ -z "$APP_KEY" ]; then
-            echo "::warning::Secrets CLAUDE_CODE_OAUTH_TOKEN / VZLA_APP_ID / VZLA_APP_PRIVATE_KEY ausentes. Review do Claude NÃO executado."
+          if [ -z "$CLAUDE_TOKEN" ]; then
+            echo "::warning::Secret CLAUDE_CODE_OAUTH_TOKEN ausente. Review do Claude NÃO executado."
             echo "ok=false" >> "$GITHUB_OUTPUT"
           else
             echo "ok=true" >> "$GITHUB_OUTPUT"
           fi
-
-      - name: Gera token do App vizzela-labs
-        id: app
-        if: steps.guard.outputs.ok == 'true'
-        uses: actions/create-github-app-token@v2
-        with:
-          app-id: ${{ secrets.app_id }}
-          private-key: ${{ secrets.app_private_key }}
 
       - name: Checkout do PR
         if: steps.guard.outputs.ok == 'true'
@@ -75,11 +67,10 @@ jobs:
       - name: Review
         if: steps.guard.outputs.ok == 'true'
         uses: anthropics/claude-code-action@v1
-        env:
-          GH_TOKEN: ${{ steps.app.outputs.token }}
         with:
+          # Sem github_token: a action troca o OIDC do job por um token do App oficial
+          # do Claude (github.com/apps/claude), e os comentários saem como "claude".
           claude_code_oauth_token: ${{ secrets.claude_code_oauth_token }}
-          github_token: ${{ steps.app.outputs.token }}
           track_progress: true
           prompt: |
             REPO: ${{ github.repository }}
@@ -118,23 +109,13 @@ jobs:
         id: guard
         env:
           CLAUDE_TOKEN: ${{ secrets.claude_code_oauth_token }}
-          APP_ID: ${{ secrets.app_id }}
-          APP_KEY: ${{ secrets.app_private_key }}
         run: |
-          if [ -z "$CLAUDE_TOKEN" ] || [ -z "$APP_ID" ] || [ -z "$APP_KEY" ]; then
-            echo "::warning::Secrets ausentes. @claude NÃO executado."
+          if [ -z "$CLAUDE_TOKEN" ]; then
+            echo "::warning::Secret CLAUDE_CODE_OAUTH_TOKEN ausente. @claude NÃO executado."
             echo "ok=false" >> "$GITHUB_OUTPUT"
           else
             echo "ok=true" >> "$GITHUB_OUTPUT"
           fi
-
-      - name: Gera token do App vizzela-labs
-        id: app
-        if: steps.guard.outputs.ok == 'true'
-        uses: actions/create-github-app-token@v2
-        with:
-          app-id: ${{ secrets.app_id }}
-          private-key: ${{ secrets.app_private_key }}
 
       - name: Checkout
         if: steps.guard.outputs.ok == 'true'
@@ -156,13 +137,14 @@ jobs:
       - name: Claude
         if: steps.guard.outputs.ok == 'true'
         uses: anthropics/claude-code-action@v1
-        env:
-          GH_TOKEN: ${{ steps.app.outputs.token }}
         with:
+          # Sem github_token: a action troca o OIDC do job por um token do App oficial
+          # do Claude (github.com/apps/claude), e os comentários saem como "claude".
           claude_code_oauth_token: ${{ secrets.claude_code_oauth_token }}
-          github_token: ${{ steps.app.outputs.token }}
           trigger_phrase: '@claude'
           claude_args: |
             --model ${{ inputs.model }}
             --max-turns ${{ inputs.max_turns }}
-            --append-system-prompt "Responda em português do Brasil. Se pedirem review, siga .vzla/review/diretrizes.md. Você só tem leitura no repo: não faça commits nem abra PRs; explique a correção no comentário."
+            --allowedTools "Read,Glob,Grep,mcp__github_comment__update_claude_comment,mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(git log:*),Bash(git diff:*),Bash(git show:*)"
+            --disallowedTools "Edit,Write,MultiEdit,NotebookEdit,mcp__github_file_ops__commit_files,mcp__github_file_ops__delete_files,Bash(git commit:*),Bash(git push:*)"
+            --append-system-prompt "Responda em português do Brasil. Se pedirem review, siga .vzla/review/diretrizes.md. Você não altera código: não faça commits nem abra PRs; explique a correção no comentário."
