@@ -19,11 +19,16 @@ git clone https://github.com/vizzela-labs/.github vzla-dotgithub && cd vzla-dotg
 # todos os repos da org
 ./scripts/setup-repo.sh --pem ~/Downloads/vizzela-labs.private-key.pem --all
 
+# token do Claude (gerado num terminal normal com `claude setup-token`, copiado para o clipboard)
+./scripts/setup-repo.sh --claude-token-clipboard --only-secrets vzla-panel-hub vzla-data-hub
+
 # só gravar/rotacionar os secrets
 ./scripts/setup-repo.sh --pem ~/Downloads/vizzela-labs.private-key.pem --only-secrets --all
 ```
 
 A chave `.pem` é a do GitHub App **vizzela-labs** (Settings da org → Developer settings → GitHub Apps → vizzela-labs → Private keys). Ela só é lida localmente e enviada criptografada ao GitHub pelo `gh secret set`. **Nunca commite a chave.**
+
+O token do Claude (`CLAUDE_CODE_OAUTH_TOKEN`) vem de uma assinatura Claude (Pro/Max) e consome a cota dela. Gere com `claude setup-token` em um terminal normal, porque o comando é interativo.
 
 No plano Free, secrets da organização não chegam a repositórios privados. Por isso os secrets são gravados repo a repo.
 

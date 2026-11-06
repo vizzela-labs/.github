@@ -43,13 +43,16 @@ O número é a issue-mãe **no [`vzla-backlog`](https://github.com/vizzela-labs/
 | PR mergeado | Fecha a sub-issue (concluída) → *Done*. Se era a última filha aberta, fecha a issue-mãe também. |
 | PR fechado sem merge | Fecha a sub-issue como *not planned* → *Done*. A mãe não é tocada. |
 
+| PR aberto / reaberto / saiu de draft | O **Claude** revisa o PR seguindo [`review/diretrizes.md`](review/diretrizes.md): comentários inline só para problemas concretos (🔴/🟡/🔵) e um resumo com veredito. É consultivo: não aprova, não bloqueia, não commita. |
+| Comentário com `@claude ...` no PR | O Claude responde no PR: tira dúvida, explica trecho ou faz outra rodada de review. |
+
 Sem issue-mãe, a sub-issue é criada solta com a label `sem-issue-mae`, e o comentário do PR avisa. Para não gerar sub-issue, aplique a label `no-issue` no PR. PRs de bots (`*[bot]`) são ignorados.
 
 ## Adicionar a automação a um repo
 
 ```bash
 # no clone deste repo (vizzela-labs/.github)
-./scripts/setup-repo.sh --pem ~/caminho/vizzela-labs.private-key.pem <repo> [<repo>...]
+./scripts/setup-repo.sh --pem ~/caminho/vizzela-labs.private-key.pem --claude-token-clipboard <repo> [<repo>...]
 ```
 
 Veja [`scripts/README.md`](scripts/README.md).

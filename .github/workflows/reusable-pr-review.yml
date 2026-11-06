@@ -1,0 +1,168 @@
+name: PR padrão · review Claude
+
+on:
+  workflow_call:
+    inputs:
+      model:
+        type: string
+        default: claude-sonnet-5-5
+      max_turns:
+        type: number
+        default: 40
+    secrets:
+      claude_code_oauth_token:
+        required: false
+      app_id:
+        required: false
+      app_private_key:
+        required: false
+
+jobs:
+  # Review automático: PR aberto, reaberto ou saindo de draft.
+  review:
+    name: Review automático
+    if: >-
+      github.event_name == 'pull_request' &&
+      !github.event.pull_request.draft &&
+      !endsWith(github.event.pull_request.user.login, '[bot]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+      id-token: write
+    steps:
+      - name: Confere secrets
+        id: guard
+        env:
+          CLAUDE_TOKEN: ${{ secrets.claude_code_oauth_token }}
+          APP_ID: ${{ secrets.app_id }}
+          APP_KEY: ${{ secrets.app_private_key }}
+        run: |
+          if [ -z "$CLAUDE_TOKEN" ] || [ -z "$APP_ID" ] || [ -z "$APP_KEY" ]; then
+            echo "::warning::Secrets CLAUDE_CODE_OAUTH_TOKEN / VZLA_APP_ID / VZLA_APP_PRIVATE_KEY ausentes. Review do Claude NÃO executado."
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Gera token do App vizzela-labs
+        id: app
+        if: steps.guard.outputs.ok == 'true'
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.app_id }}
+          private-key: ${{ secrets.app_private_key }}
+
+      - name: Checkout do PR
+        if: steps.guard.outputs.ok == 'true'
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Baixa as diretrizes de vizzela-labs/.github
+        if: steps.guard.outputs.ok == 'true'
+        uses: actions/checkout@v5
+        with:
+          repository: vizzela-labs/.github
+          ref: main
+          path: .vzla
+          sparse-checkout: review
+          persist-credentials: false
+
+      - name: Review
+        if: steps.guard.outputs.ok == 'true'
+        uses: anthropics/claude-code-action@v1
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+        with:
+          claude_code_oauth_token: ${{ secrets.claude_code_oauth_token }}
+          github_token: ${{ steps.app.outputs.token }}
+          track_progress: true
+          prompt: |
+            REPO: ${{ github.repository }}
+            PR NUMBER: ${{ github.event.pull_request.number }}
+            TÍTULO: ${{ github.event.pull_request.title }}
+            BRANCH: ${{ github.event.pull_request.head.ref }} → ${{ github.event.pull_request.base.ref }}
+
+            Faça o code review deste PR.
+
+            1. Leia `.vzla/review/diretrizes.md`. Ele define o que procurar, o que ignorar e o formato da resposta. Siga-o à risca.
+            2. Ignore a pasta `.vzla/` em si: ela não faz parte do PR.
+            3. Leia `AGENTS.md`, `CLAUDE.md` e `README.md` do repo, se existirem.
+            4. Veja o diff com `gh pr diff ${{ github.event.pull_request.number }}` e o contexto com `gh pr view ${{ github.event.pull_request.number }}`.
+               Abra os arquivos tocados (e quem os chama) para entender o impacto, não revise só o diff.
+            5. Publique os problemas como comentários inline e termine com o comentário final pelo `gh pr comment`.
+          claude_args: |
+            --model ${{ inputs.model }}
+            --max-turns ${{ inputs.max_turns }}
+            --allowedTools "Read,Glob,Grep,mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(git log:*),Bash(git diff:*),Bash(git show:*)"
+
+  # Sob demanda: "@claude ..." num comentário do PR.
+  mencao:
+    name: Responde @claude
+    if: >-
+      (github.event_name == 'issue_comment' && github.event.issue.pull_request && contains(github.event.comment.body, '@claude')) ||
+      (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+      id-token: write
+    steps:
+      - name: Confere secrets
+        id: guard
+        env:
+          CLAUDE_TOKEN: ${{ secrets.claude_code_oauth_token }}
+          APP_ID: ${{ secrets.app_id }}
+          APP_KEY: ${{ secrets.app_private_key }}
+        run: |
+          if [ -z "$CLAUDE_TOKEN" ] || [ -z "$APP_ID" ] || [ -z "$APP_KEY" ]; then
+            echo "::warning::Secrets ausentes. @claude NÃO executado."
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Gera token do App vizzela-labs
+        id: app
+        if: steps.guard.outputs.ok == 'true'
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.app_id }}
+          private-key: ${{ secrets.app_private_key }}
+
+      - name: Checkout
+        if: steps.guard.outputs.ok == 'true'
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Baixa as diretrizes de vizzela-labs/.github
+        if: steps.guard.outputs.ok == 'true'
+        uses: actions/checkout@v5
+        with:
+          repository: vizzela-labs/.github
+          ref: main
+          path: .vzla
+          sparse-checkout: review
+          persist-credentials: false
+
+      - name: Claude
+        if: steps.guard.outputs.ok == 'true'
+        uses: anthropics/claude-code-action@v1
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+        with:
+          claude_code_oauth_token: ${{ secrets.claude_code_oauth_token }}
+          github_token: ${{ steps.app.outputs.token }}
+          trigger_phrase: '@claude'
+          claude_args: |
+            --model ${{ inputs.model }}
+            --max-turns ${{ inputs.max_turns }}
+            --append-system-prompt "Responda em português do Brasil. Se pedirem review, siga .vzla/review/diretrizes.md. Você só tem leitura no repo: não faça commits nem abra PRs; explique a correção no comentário."

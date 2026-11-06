@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Instala o "PR padrão" em repositórios da vizzela-labs:
 #   1. labels de tipo no repo
-#   2. secrets VZLA_APP_ID / VZLA_APP_PRIVATE_KEY (só com --pem)
+#   2. secrets VZLA_APP_ID / VZLA_APP_PRIVATE_KEY (com --pem) e CLAUDE_CODE_OAUTH_TOKEN (com --claude-token-*)
 #   3. .github/workflows/pr-padrao.yml, via PR numa branch ci/<issue>-pr-padrao
 #
 # Uso:
@@ -11,7 +11,9 @@
 # Opções:
 #   --pem <arquivo>     chave privada (.pem) do GitHub App vizzela-labs → grava os secrets
 #   --app-id <id>       App ID (padrão 5152257)
-#   --only-secrets      só grava os secrets (exige --pem)
+#   --claude-token-file <arquivo>   arquivo com o token de `claude setup-token` → secret CLAUDE_CODE_OAUTH_TOKEN
+#   --claude-token-clipboard        lê o token da área de transferência (pbpaste)
+#   --only-secrets      só grava os secrets (exige --pem e/ou --claude-token-*)
 #   --skip-workflow     não abre o PR do workflow
 #   --parent <nº>       issue-mãe no vzla-backlog para o PR de instalação (padrão 43)
 #   --all               todos os repos não arquivados da org (exceto .github e vzla-backlog)
@@ -22,6 +24,7 @@ set -euo pipefail
 ORG="vizzela-labs"
 APP_ID="5152257"
 PEM=""
+CLAUDE_TOKEN=""
 ONLY_SECRETS=0
 SKIP_WORKFLOW=0
 PARENT="43"
@@ -36,11 +39,13 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --pem) PEM="$2"; shift 2 ;;
     --app-id) APP_ID="$2"; shift 2 ;;
+    --claude-token-file) CLAUDE_TOKEN="$(tr -d '[:space:]' <"$2")"; shift 2 ;;
+    --claude-token-clipboard) CLAUDE_TOKEN="$(pbpaste | tr -d '[:space:]')"; shift ;;
     --only-secrets) ONLY_SECRETS=1; shift ;;
     --skip-workflow) SKIP_WORKFLOW=1; shift ;;
     --parent) PARENT="$2"; shift 2 ;;
     --all) ALL=1; shift ;;
-    -h|--help) sed -n '2,20p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,23p' "$0"; exit 0 ;;
     -*) echo "Opção desconhecida: $1" >&2; exit 1 ;;
     *) REPOS+=("${1#"$ORG/"}"); shift ;;
   esac
@@ -52,7 +57,8 @@ if [[ $ALL -eq 1 ]]; then
   )
 fi
 [[ ${#REPOS[@]} -gt 0 ]] || { echo "Informe ao menos um repo ou --all" >&2; exit 1; }
-if [[ $ONLY_SECRETS -eq 1 && -z "$PEM" ]]; then echo "--only-secrets exige --pem" >&2; exit 1; fi
+if [[ $ONLY_SECRETS -eq 1 && -z "$PEM" && -z "$CLAUDE_TOKEN" ]]; then echo "--only-secrets exige --pem e/ou --claude-token-*" >&2; exit 1; fi
+if [[ -n "$CLAUDE_TOKEN" && "$CLAUDE_TOKEN" != sk-ant-* ]]; then echo "O token do Claude não parece válido (esperado sk-ant-...)" >&2; exit 1; fi
 if [[ -n "$PEM" && ! -f "$PEM" ]]; then echo "Arquivo .pem não encontrado: $PEM" >&2; exit 1; fi
 
 # nome|cor|descrição
@@ -80,9 +86,15 @@ setup_labels() {
 
 setup_secrets() {
   local repo="$1"
-  gh secret set VZLA_APP_ID -R "$ORG/$repo" --body "$APP_ID" >/dev/null
-  gh secret set VZLA_APP_PRIVATE_KEY -R "$ORG/$repo" <"$PEM" >/dev/null
-  echo "  ✓ secrets VZLA_APP_ID / VZLA_APP_PRIVATE_KEY"
+  if [[ -n "$PEM" ]]; then
+    gh secret set VZLA_APP_ID -R "$ORG/$repo" --body "$APP_ID" >/dev/null
+    gh secret set VZLA_APP_PRIVATE_KEY -R "$ORG/$repo" <"$PEM" >/dev/null
+    echo "  ✓ secrets VZLA_APP_ID / VZLA_APP_PRIVATE_KEY"
+  fi
+  if [[ -n "$CLAUDE_TOKEN" ]]; then
+    printf '%s' "$CLAUDE_TOKEN" | gh secret set CLAUDE_CODE_OAUTH_TOKEN -R "$ORG/$repo" >/dev/null
+    echo "  ✓ secret CLAUDE_CODE_OAUTH_TOKEN"
+  fi
 }
 
 setup_workflow() {
@@ -143,6 +155,6 @@ for repo in "${REPOS[@]}"; do
   echo "▶ $ORG/$repo"
   if [[ $ONLY_SECRETS -eq 1 ]]; then setup_secrets "$repo"; continue; fi
   setup_labels "$repo"
-  [[ -n "$PEM" ]] && setup_secrets "$repo"
+  if [[ -n "$PEM" || -n "$CLAUDE_TOKEN" ]]; then setup_secrets "$repo"; fi
   [[ $SKIP_WORKFLOW -eq 1 ]] || setup_workflow "$repo"
 done
