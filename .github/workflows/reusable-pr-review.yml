@@ -60,7 +60,7 @@ jobs:
         uses: actions/checkout@v5
         with:
           fetch-depth: 1
-          persist-credentials: false
+          # a action do Claude faz git fetch e precisa das credenciais
 
       - name: Baixa as diretrizes de vizzela-labs/.github
         if: steps.guard.outputs.ok == 'true'
@@ -141,7 +141,7 @@ jobs:
         uses: actions/checkout@v5
         with:
           fetch-depth: 1
-          persist-credentials: false
+          # a action do Claude faz git fetch e precisa das credenciais
 
       - name: Baixa as diretrizes de vizzela-labs/.github
         if: steps.guard.outputs.ok == 'true'
