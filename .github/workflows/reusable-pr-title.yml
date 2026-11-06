@@ -14,7 +14,7 @@ jobs:
       issues: write
     steps:
       - name: Baixa os scripts de vizzela-labs/.github
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: vizzela-labs/.github
           ref: main
@@ -22,6 +22,6 @@ jobs:
           persist-credentials: false
 
       - name: Valida tipo(escopo) e aplica label
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: return await require('./.vzla/scripts/pr-title.js')({ github, context, core })

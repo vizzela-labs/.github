@@ -33,7 +33,7 @@ jobs:
       - name: Gera token do App vizzela-labs
         id: app
         if: steps.guard.outputs.ok == 'true'
-        uses: actions/create-github-app-token@v1
+        uses: actions/create-github-app-token@v2
         with:
           app-id: ${{ secrets.app_id }}
           private-key: ${{ secrets.app_private_key }}
@@ -41,7 +41,7 @@ jobs:
 
       - name: Baixa os scripts de vizzela-labs/.github
         if: steps.guard.outputs.ok == 'true'
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: vizzela-labs/.github
           ref: main
@@ -50,7 +50,7 @@ jobs:
 
       - name: Cria / atualiza / fecha a sub-issue no vzla-backlog
         if: steps.guard.outputs.ok == 'true'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           github-token: ${{ steps.app.outputs.token }}
           script: return await require('./.vzla/scripts/pr-sync.js')({ github, context, core })
