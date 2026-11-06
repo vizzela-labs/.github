@@ -20,7 +20,10 @@ module.exports = async ({ github, context, core }) => {
   const marker = `<!-- vzla-pr: ${prRef} -->`;
   const hubRef = (n) => `${HUB.owner}/${HUB.repo}#${n}`;
 
-  if (pr.labels.some((l) => l.name === 'no-issue')) {
+  // Relê as labels: quem cria o PR via CLI/API aplica labels logo depois do "opened",
+  // então o payload do evento pode vir sem elas.
+  const { data: fresh } = await github.rest.pulls.get({ owner, repo, pull_number: pr.number });
+  if (fresh.labels.some((l) => l.name === 'no-issue')) {
     core.info('PR com label no-issue: nada a fazer.');
     return;
   }
