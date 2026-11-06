@@ -1,0 +1,6 @@
+{
+  "name": "PR padrão (vizzela-labs)",
+  "description": "Valida o título tipo(escopo): descrição e mantém a sub-issue do PR no vzla-backlog / projeto Tecnologia Vizzela.",
+  "iconName": "octicon git-pull-request",
+  "categories": ["Automation"]
+}

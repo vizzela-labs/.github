@@ -1,0 +1,56 @@
+name: PR padrão · sub-issue
+
+on:
+  workflow_call:
+    secrets:
+      app_id:
+        required: false
+      app_private_key:
+        required: false
+
+jobs:
+  sync:
+    name: Sincroniza sub-issue
+    if: ${{ !endsWith(github.event.pull_request.user.login, '[bot]') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: Confere secrets do GitHub App
+        id: guard
+        env:
+          APP_ID: ${{ secrets.app_id }}
+          APP_KEY: ${{ secrets.app_private_key }}
+        run: |
+          if [ -z "$APP_ID" ] || [ -z "$APP_KEY" ]; then
+            echo "::warning::Secrets VZLA_APP_ID / VZLA_APP_PRIVATE_KEY ausentes neste repo. Rode scripts/setup-repo.sh de vizzela-labs/.github. Sub-issue NÃO sincronizada."
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Gera token do App vizzela-labs
+        id: app
+        if: steps.guard.outputs.ok == 'true'
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.app_id }}
+          private-key: ${{ secrets.app_private_key }}
+          owner: vizzela-labs
+
+      - name: Baixa os scripts de vizzela-labs/.github
+        if: steps.guard.outputs.ok == 'true'
+        uses: actions/checkout@v4
+        with:
+          repository: vizzela-labs/.github
+          ref: main
+          path: .vzla
+          persist-credentials: false
+
+      - name: Cria / atualiza / fecha a sub-issue no vzla-backlog
+        if: steps.guard.outputs.ok == 'true'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ steps.app.outputs.token }}
+          script: return await require('./.vzla/scripts/pr-sync.js')({ github, context, core })

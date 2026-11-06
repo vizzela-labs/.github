@@ -1,0 +1,30 @@
+# Gerado a partir de vizzela-labs/.github. Não edite a lógica aqui: ela mora nos
+# workflows reutilizáveis de lá. Convenções: https://github.com/vizzela-labs/.github/blob/main/CONTRIBUTING.md
+name: PR padrão
+
+on:
+  pull_request:
+    types: [opened, reopened, edited, synchronize, ready_for_review, converted_to_draft, closed]
+
+jobs:
+  titulo:
+    name: Título
+    if: github.event.action != 'closed'
+    uses: vizzela-labs/.github/.github/workflows/reusable-pr-title.yml@main
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+
+  sub-issue:
+    name: Sub-issue
+    if: github.event.action != 'synchronize'
+    concurrency:
+      group: pr-padrao-${{ github.event.pull_request.number }}
+      cancel-in-progress: false
+    uses: vizzela-labs/.github/.github/workflows/reusable-pr-sync.yml@main
+    permissions:
+      contents: read
+    secrets:
+      app_id: ${{ secrets.VZLA_APP_ID }}
+      app_private_key: ${{ secrets.VZLA_APP_PRIVATE_KEY }}
