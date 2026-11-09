@@ -10,12 +10,13 @@ on:
     types: [labeled, unlabeled, synchronize, reopened, closed]
   workflow_dispatch:
 
-concurrency:
-  group: dev-branch
-  cancel-in-progress: true
-
 jobs:
   dev:
+    # A trava fica no job, não no workflow: uma execução pulada (PR sem a label)
+    # não pode cancelar a que remonta a dev (ex.: o push do merge na main).
+    concurrency:
+      group: dev-branch
+      cancel-in-progress: true
     if: >-
       github.event_name != 'pull_request' ||
       contains(github.event.pull_request.labels.*.name, 'homologar') ||
