@@ -1,0 +1,48 @@
+name: Homologação · branch dev
+
+on:
+  workflow_call:
+    inputs:
+      dev_branch:
+        type: string
+        default: dev
+      label:
+        type: string
+        default: homologar
+      dev_url:
+        description: Endereço do ambiente de homologação (aparece no comentário do PR)
+        type: string
+        default: ''
+
+jobs:
+  montar:
+    name: Monta a branch dev
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+    steps:
+      - name: Checkout completo do repo
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Baixa os scripts de vizzela-labs/.github
+        uses: actions/checkout@v5
+        with:
+          repository: vizzela-labs/.github
+          ref: main
+          path: .vzla
+          persist-credentials: false
+
+      - name: Remonta dev = branch padrão + PRs com a label
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          DEV_BRANCH: ${{ inputs.dev_branch }}
+          LABEL: ${{ inputs.label }}
+          DEV_URL: ${{ inputs.dev_url }}
+          EVENT_PR: ${{ github.event.pull_request.number }}
+        run: bash .vzla/scripts/dev-branch.sh

@@ -1,0 +1,29 @@
+# Gerado a partir de vizzela-labs/.github. Só para repos com ambiente de homologação
+# (app de dev no Coolify fazendo deploy da branch dev). A branch dev é REMONTADA pela
+# automação: branch padrão + PRs abertos com a label "homologar". Não commite direto nela.
+name: Homologação (dev)
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    types: [labeled, unlabeled, synchronize, reopened, closed]
+  workflow_dispatch:
+
+concurrency:
+  group: dev-branch
+  cancel-in-progress: true
+
+jobs:
+  dev:
+    if: >-
+      github.event_name != 'pull_request' ||
+      contains(github.event.pull_request.labels.*.name, 'homologar') ||
+      github.event.label.name == 'homologar'
+    uses: vizzela-labs/.github/.github/workflows/reusable-dev-branch.yml@main
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+    with:
+      dev_url: __DEV_URL__

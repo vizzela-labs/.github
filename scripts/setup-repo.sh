@@ -73,6 +73,7 @@ LABELS=(
   "ci|5319e7|Pipelines / Actions"
   "breaking|b60205|Breaking change"
   "no-issue|cccccc|Não gerar sub-issue para este PR"
+  "homologar|0e8a16|Sobe este PR na branch dev (ambiente de homologação)"
 )
 
 setup_labels() {
