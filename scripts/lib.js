@@ -70,6 +70,13 @@ async function ensureLabel(github, owner, repo, name) {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+// Repos com Preview Deployments ligado no Coolify → URL do preview de um PR.
+// O Coolify usa o template {{pr_id}}.{{domain}} do app.
+const PREVIEWS = {
+  'vzla-panel-hub': (pr) => `https://${pr}.hub.equipevizzela.com.br`,
+};
+const previewUrl = (repo, prNumber) => (PREVIEWS[repo] ? PREVIEWS[repo](prNumber) : null);
+
 module.exports = {
   TYPES,
   TYPE_LABELS,
@@ -81,4 +88,5 @@ module.exports = {
   stripComments,
   ensureLabel,
   sleep,
+  previewUrl,
 };

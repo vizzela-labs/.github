@@ -177,6 +177,31 @@ module.exports = async ({ github, context, core }) => {
     core.info(`Vínculo "closes ${hubRef(issue.number)}" garantido no corpo do PR`);
   }
 
+  // Avisa uma única vez, na issue-mãe (o pedido), que a homologação está no ar,
+  // mencionando quem abriu o pedido e o desenvolvedor do PR.
+  async function announcePreview(parent, url) {
+    const tag = `<!-- vzla-preview: ${prRef} -->`;
+    const comments = await github.paginate(github.rest.issues.listComments, {
+      ...HUB, issue_number: parent.number, per_page: 100,
+    });
+    if (comments.some((c) => c.body?.includes(tag))) return;
+    const people = [...new Set([parent.user?.login, pr.user.login].filter(Boolean))].map((l) => `@${l}`);
+    await github.rest.issues.createComment({
+      ...HUB,
+      issue_number: parent.number,
+      body: [
+        tag,
+        '### Homologação disponível',
+        `${people.join(' e ')}: o ${prRef} está no ar para teste em **${url}**.`,
+        '',
+        'O ambiente sobe alguns minutos depois do PR ficar pronto e é atualizado a cada push. Ele usa o banco de **homologação** do data-hub; os outros serviços ainda são os de produção, então **não grave dados reais** por ele.',
+        '',
+        'Quando terminar o teste, responda aqui com **aprovado** ou com o que precisa ajustar.',
+      ].join('\n'),
+    });
+    core.info(`Homologação anunciada em ${hubRef(parent.number)}`);
+  }
+
   function buildBody() {
     const summary = lib.extractSummary(pr.body) || '_(PR sem resumo)_';
     return [
@@ -279,6 +304,15 @@ module.exports = async ({ github, context, core }) => {
   const itemId = await setStatus(issue.node_id, PROJECT.inProgress);
   await setCurrentSprintIfEmpty(itemId);
 
+  const preview = pr.draft ? null : lib.previewUrl(repo, pr.number);
+  if (preview && parent) {
+    try {
+      await announcePreview(parent, preview);
+    } catch (e) {
+      core.warning(`Não consegui anunciar a homologação: ${e.message}`);
+    }
+  }
+
   const notes = [];
   if (!parentRef) {
     notes.push('⚠️ **Sem issue-mãe.** Use a branch `tipo/<nº>-slug` ou preencha `Issue-mãe: vzla-backlog#<nº>` no corpo do PR.');
@@ -295,6 +329,7 @@ module.exports = async ({ github, context, core }) => {
     '### 🔗 Rastreamento',
     `- **Sub-issue:** ${hubRef(issue.number)} → In progress`,
     parent ? `- **Issue-mãe:** ${hubRef(parent.number)} (${parentRef.source})` : null,
+    preview ? `- **Homologação:** ${preview} (sobe alguns minutos depois do PR ficar pronto)` : null,
     notes.length ? '' : null,
     ...notes,
     '',
