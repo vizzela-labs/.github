@@ -180,7 +180,7 @@ module.exports = async ({ github, context, core }) => {
   // Avisa uma única vez, na issue-mãe (o pedido), que a homologação está no ar,
   // mencionando quem abriu o pedido e o desenvolvedor do PR.
   async function announcePreview(parent, url) {
-    const tag = `<!-- vzla-preview: ${prRef} -->`;
+    const tag = `<!-- vzla-preview: ${prRef} ${url} -->`; // a URL no marcador: se mudar, avisa de novo
     const comments = await github.paginate(github.rest.issues.listComments, {
       ...HUB, issue_number: parent.number, per_page: 100,
     });

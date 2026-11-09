@@ -71,9 +71,10 @@ async function ensureLabel(github, owner, repo, name) {
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // Repos com Preview Deployments ligado no Coolify → URL do preview de um PR.
-// O Coolify usa o template {{pr_id}}.{{domain}} do app.
+// Um nível só de subdomínio: o certificado da Cloudflare cobre *.equipevizzela.com.br,
+// não *.hub.equipevizzela.com.br. Tem que bater com o "Preview URL template" do app no Coolify.
 const PREVIEWS = {
-  'vzla-panel-hub': (pr) => `https://${pr}.hub.equipevizzela.com.br`,
+  'vzla-panel-hub': (pr) => `https://hub-pr-${pr}.equipevizzela.com.br`,
 };
 const previewUrl = (repo, prNumber) => (PREVIEWS[repo] ? PREVIEWS[repo](prNumber) : null);
 
