@@ -242,7 +242,11 @@ module.exports = async ({ github, context, core }) => {
         await lib.sleep(3000); // deixa o resumo de sub-issues da mãe atualizar
         const parent = await getHubIssue(parentNumber);
         const s = parent?.sub_issues_summary;
-        if (parent && parent.state === 'open' && s && s.total > 0 && s.completed === s.total) {
+        // Tarefas "- [ ]" no corpo da mãe = etapas que não são PRs; enquanto houver, ela fica aberta.
+        const pendingTasks = (lib.stripComments(parent?.body || '').match(/^\s*[-*] \[ \]/gm) || []).length;
+        if (parent && parent.state === 'open' && s && s.total > 0 && s.completed === s.total && pendingTasks > 0) {
+          parentLine = `- **Issue-mãe:** ${hubRef(parent.number)}: todas as sub-issues concluídas, mas ficou aberta por ter ${pendingTasks} tarefa(s) pendente(s) no checklist`;
+        } else if (parent && parent.state === 'open' && s && s.total > 0 && s.completed === s.total) {
           await github.rest.issues.update({ ...HUB, issue_number: parent.number, state: 'closed', state_reason: 'completed' });
           await setStatus(parent.node_id, PROJECT.done);
           parentLine = `- **Issue-mãe:** ${hubRef(parent.number)}: todas as sub-issues concluídas, fechada ✅`;

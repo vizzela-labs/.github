@@ -40,7 +40,7 @@ O número é a issue-mãe **no [`vzla-backlog`](https://github.com/vizzela-labs/
 | Quando | O que a automação faz |
 |---|---|
 | PR aberto / reaberto / editado | Cria (ou atualiza) a sub-issue `[repo] título do PR` no `vzla-backlog`, pendura na issue-mãe, coloca no projeto **Tecnologia Vizzela** como *In progress*, atribui ao autor e comenta no PR com os links. |
-| PR mergeado | Fecha a sub-issue (concluída) → *Done*. Se era a última filha aberta, fecha a issue-mãe também. |
+| PR mergeado | Fecha a sub-issue (concluída) → *Done*. Se era a última filha aberta e a issue-mãe não tem tarefas `- [ ]` pendentes no corpo, fecha a issue-mãe também. |
 | PR fechado sem merge | Fecha a sub-issue como *not planned* → *Done*. A mãe não é tocada. |
 | PR aberto / reaberto / saiu de draft | O **Claude** revisa o PR seguindo [`review/diretrizes.md`](review/diretrizes.md): comentários inline só para problemas concretos (🔴/🟡/🔵) e um resumo com veredito. É consultivo: não aprova, não bloqueia, não commita. |
 | Comentário com `@claude ...` no PR | O Claude responde no PR: tira dúvida, explica trecho ou faz outra rodada de review. |
