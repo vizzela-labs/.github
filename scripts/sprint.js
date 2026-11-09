@@ -2,6 +2,7 @@
 // Tecnologia Vizzela. Sprints semanais começando no domingo, título "Sprint DD/MM/AAAA".
 // Iterações existentes são reenviadas com o próprio id, o que preserva os itens vinculados.
 const FIELD_ID = 'PVTIF_lADOFBBL-s4BlX7szhkFER8';
+const PROJECT_ID = 'PVT_kwDOFBBL-s4BlX7s';
 const DAY = 864e5;
 
 const addDays = (iso, n) => new Date(Date.parse(iso) + n * DAY).toISOString().slice(0, 10);
@@ -55,7 +56,44 @@ async function ensureSprints({ github, core, dryRun }) {
   core.info(`Criadas: ${wanted.map(title).join(', ')}. Sprints existentes preservadas (${all.length}).`);
 }
 
-module.exports = async ({ github, core }) => ensureSprints({ github, core, dryRun: process.env.DRY_RUN === 'true' });
+// Itens abertos que ficaram numa sprint já encerrada passam para a sprint atual.
+async function carryOver({ github, core, dryRun }) {
+  const current = sprintAt(await readIterations(github), todaySP());
+  if (!current) { core.warning('Sem sprint atual; nada a levar.'); return; }
+  const today = todaySP();
+  const moved = [];
+  let after = null;
+  do {
+    const { node } = await github.graphql(
+      `query($p:ID!,$after:String){node(id:$p){... on ProjectV2{items(first:100,after:$after){pageInfo{hasNextPage endCursor}
+        nodes{id content{... on Issue{number state repository{name}} ... on PullRequest{number state repository{name}}}
+        it:fieldValueByName(name:"Iteration"){... on ProjectV2ItemFieldIterationValue{iterationId title startDate duration}}
+        st:fieldValueByName(name:"Status"){... on ProjectV2ItemFieldSingleSelectValue{name}}}}}}}`,
+      { p: PROJECT_ID, after },
+    );
+    for (const it of node.items.nodes) {
+      const iter = it.it;
+      if (!iter?.iterationId || iter.iterationId === current.id) continue;
+      if (addDays(iter.startDate, iter.duration) > today) continue; // sprint ainda não terminou (ou é futura)
+      if (it.st?.name === 'Done' || it.content?.state !== 'OPEN') continue;
+      moved.push(`${it.content.repository.name}#${it.content.number} (${iter.title})`);
+      if (!dryRun) {
+        await github.graphql(
+          `mutation($p:ID!,$i:ID!,$f:ID!,$it:String!){updateProjectV2ItemFieldValue(input:{projectId:$p,itemId:$i,fieldId:$f,value:{iterationId:$it}}){projectV2Item{id}}}`,
+          { p: PROJECT_ID, i: it.id, f: FIELD_ID, it: current.id },
+        );
+      }
+    }
+    after = node.items.pageInfo.hasNextPage ? node.items.pageInfo.endCursor : null;
+  } while (after);
+  core.info(`${dryRun ? 'DRY RUN, levaria' : 'Levados'} para ${current.title}: ${moved.length} item(ns)${moved.length ? '\n- ' + moved.join('\n- ') : ''}`);
+}
+
+module.exports = async ({ github, core }) => {
+  const dryRun = process.env.DRY_RUN === 'true';
+  await ensureSprints({ github, core, dryRun });
+  await carryOver({ github, core, dryRun });
+};
 module.exports.readIterations = readIterations;
 module.exports.sprintAt = sprintAt;
 module.exports.todaySP = todaySP;

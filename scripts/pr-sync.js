@@ -7,10 +7,17 @@ const HUB = { owner: 'vizzela-labs', repo: 'vzla-backlog' };
 const PROJECT = {
   id: 'PVT_kwDOFBBL-s4BlX7s',
   statusField: 'PVTSSF_lADOFBBL-s4BlX7szhkFDoI',
+  backlog: '9d1c2785',
+  todo: 'f75ad846',
   inProgress: '47fc9ee4',
+  inReview: '0909cf2b',
+  qa: '969ee038',
   done: '98236657',
 };
-const STATUS_NAME = { [PROJECT.inProgress]: 'In progress', [PROJECT.done]: 'Done' };
+const STATUS_NAME = {
+  [PROJECT.backlog]: 'Backlog', [PROJECT.todo]: 'Todo', [PROJECT.inProgress]: 'In progress',
+  [PROJECT.inReview]: 'In review', [PROJECT.qa]: 'QA', [PROJECT.done]: 'Done',
+};
 const COMMENT_TAG = '<!-- vzla-sub-issue';
 
 module.exports = async ({ github, context, core }) => {
@@ -336,16 +343,18 @@ module.exports = async ({ github, context, core }) => {
     await syncLabels(issue, labels);
   }
 
+  // Rascunho = In progress; pronto para revisão = In review. Com preview no ar,
+  // o pedido (issue-mãe) vai para QA: é a vez de quem pediu testar.
+  const preview = pr.draft ? null : lib.previewUrl(repo, pr.number);
+  const subStatus = pr.draft ? PROJECT.inProgress : PROJECT.inReview;
+  const parentStatus = preview ? PROJECT.qa : PROJECT.inProgress;
   if (parent) {
     await linkParent(parent, issue);
-    // Há PR em andamento para o pedido: a mãe também está em andamento no board.
-    await setStatus(parent.node_id, PROJECT.inProgress);
+    await setStatus(parent.node_id, parentStatus);
   }
   await ensureClosingKeyword(issue);
-  const itemId = await setStatus(issue.node_id, PROJECT.inProgress);
+  const itemId = await setStatus(issue.node_id, subStatus);
   await setCurrentSprintIfEmpty(itemId);
-
-  const preview = pr.draft ? null : lib.previewUrl(repo, pr.number);
   if (preview && parent) {
     try {
       await announcePreview(parent, preview);
@@ -356,6 +365,8 @@ module.exports = async ({ github, context, core }) => {
 
   if (created) addEvent('Sub-issue', `Sub-issue ${hubRef(issue.number)} criada`);
   if (action === 'reopened') addEvent(`Reaberto (${stamp()})`, 'PR reaberto');
+  if (action === 'ready_for_review') addEvent(`Pronto para revisão (${stamp()})`, 'PR pronto para revisão: sub-issue em In review');
+  if (action === 'converted_to_draft') addEvent(`Rascunho (${stamp()})`, 'PR voltou para rascunho: sub-issue em In progress');
   if (preview) addEvent('Homologação disponível', `Homologação disponível em ${preview}`);
 
   const notes = [];
@@ -372,7 +383,7 @@ module.exports = async ({ github, context, core }) => {
   await upsertComment(comment, [
     `${COMMENT_TAG}: ${issue.number} -->`,
     '### 🔗 Rastreamento',
-    `- **Sub-issue:** ${hubRef(issue.number)} → In progress`,
+    `- **Sub-issue:** ${hubRef(issue.number)} → ${STATUS_NAME[subStatus]}`,
     parent ? `- **Issue-mãe:** ${hubRef(parent.number)} (${parentRef.source})` : null,
     preview ? `- **Homologação:** ${preview} (sobe alguns minutos depois do PR ficar pronto)` : null,
     notes.length ? '' : null,
