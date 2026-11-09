@@ -303,7 +303,11 @@ module.exports = async ({ github, context, core }) => {
     await syncLabels(issue, labels);
   }
 
-  if (parent) await linkParent(parent, issue);
+  if (parent) {
+    await linkParent(parent, issue);
+    // Há PR em andamento para o pedido: a mãe também está em andamento no board.
+    await setStatus(parent.node_id, PROJECT.inProgress);
+  }
   await ensureClosingKeyword(issue);
   const itemId = await setStatus(issue.node_id, PROJECT.inProgress);
   await setCurrentSprintIfEmpty(itemId);
