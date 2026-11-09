@@ -153,6 +153,25 @@ module.exports = async ({ github, context, core }) => {
     }
   }
 
+  // Linha do tempo do comentário de rastreamento: só cresce, para o histórico
+  // (link da homologação, merge etc.) não sumir quando o PR fecha.
+  const HIST_HEADER = '#### Linha do tempo';
+  const stamp = () =>
+    new Intl.DateTimeFormat('pt-BR', {
+      timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit',
+    }).format(new Date()).replace(',', '');
+  const history = [];
+  function loadHistory(c) {
+    const body = c?.body || '';
+    const i = body.indexOf(HIST_HEADER);
+    if (i < 0) return;
+    for (const l of body.slice(i + HIST_HEADER.length).split('\n')) if (l.startsWith('- ')) history.push(l);
+  }
+  function addEvent(key, text) {
+    if (!history.some((l) => l.includes(key))) history.push(`- ${stamp()} · ${text}`);
+  }
+  const historyBlock = () => (history.length ? ['', HIST_HEADER, ...history] : []);
+
   async function upsertComment(comment, lines) {
     const body = lines.filter((l) => l !== null).join('\n');
     if (comment) {
@@ -220,6 +239,7 @@ module.exports = async ({ github, context, core }) => {
 
   // ---------- fluxo ----------
   const comment = await findStickyComment();
+  loadHistory(comment);
   let issue = await findSubIssue(comment);
 
   if (action === 'closed') {
@@ -255,11 +275,23 @@ module.exports = async ({ github, context, core }) => {
         }
       }
     }
+    if (!parentLine) {
+      const parentNumber = await currentParentNumber(issue.number);
+      if (parentNumber) parentLine = `- **Issue-mãe:** ${hubRef(parentNumber)}`;
+    }
+    const closedPreview = lib.previewUrl(repo, pr.number);
+    addEvent(merged ? 'Mergeado' : 'Fechado sem merge',
+      merged ? `Mergeado por ${pr.merged_by?.login || 'alguém'}: sub-issue ${hubRef(issue.number)} concluída` : `Fechado sem merge: sub-issue ${hubRef(issue.number)} não planejada`);
+    if (closedPreview) addEvent('Homologação removida', 'Ambiente de homologação removido pelo Coolify');
     await upsertComment(comment, [
       `${COMMENT_TAG}: ${issue.number} -->`,
       '### 🔗 Rastreamento',
       `- **Sub-issue:** ${hubRef(issue.number)}: ${merged ? 'fechada como concluída (merge)' : 'fechada como não planejada (PR fechado sem merge)'} → Done`,
       parentLine,
+      closedPreview ? `- **Homologação:** ~~${closedPreview}~~ (ambiente removido após o ${merged ? 'merge' : 'fechamento'}; o link não abre mais)` : null,
+      ...historyBlock(),
+      '',
+      '<sub>Atualizado automaticamente pelo workflow PR padrão. [Convenções](https://github.com/vizzela-labs/.github/blob/main/CONTRIBUTING.md)</sub>',
     ]);
     return;
   }
@@ -284,6 +316,7 @@ module.exports = async ({ github, context, core }) => {
   if (parsed?.breaking) labels.push('breaking');
   if (!parent) labels.push('sem-issue-mae');
 
+  const created = !issue;
   if (!issue) {
     for (const name of labels) await lib.ensureLabel(github, HUB.owner, HUB.repo, name);
     ({ data: issue } = await github.rest.issues.create({ ...HUB, title, body: buildBody(), labels }));
@@ -321,6 +354,10 @@ module.exports = async ({ github, context, core }) => {
     }
   }
 
+  if (created) addEvent('Sub-issue', `Sub-issue ${hubRef(issue.number)} criada`);
+  if (action === 'reopened') addEvent(`Reaberto (${stamp()})`, 'PR reaberto');
+  if (preview) addEvent('Homologação disponível', `Homologação disponível em ${preview}`);
+
   const notes = [];
   if (!parentRef) {
     notes.push('⚠️ **Sem issue-mãe.** Use a branch `tipo/<nº>-slug` ou preencha `Issue-mãe: vzla-backlog#<nº>` no corpo do PR.');
@@ -340,6 +377,7 @@ module.exports = async ({ github, context, core }) => {
     preview ? `- **Homologação:** ${preview} (sobe alguns minutos depois do PR ficar pronto)` : null,
     notes.length ? '' : null,
     ...notes,
+    ...historyBlock(),
     '',
     '<sub>Atualizado automaticamente pelo workflow PR padrão. [Convenções](https://github.com/vizzela-labs/.github/blob/main/CONTRIBUTING.md)</sub>',
   ]);
