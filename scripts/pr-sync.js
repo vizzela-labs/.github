@@ -137,6 +137,21 @@ module.exports = async ({ github, context, core }) => {
     }
   }
 
+  // "closes owner/repo#N" no corpo do PR é o que liga o PR à issue no painel
+  // "Development" do GitHub. O bloco é gerenciado: reescrito se a sub-issue mudar.
+  async function ensureClosingKeyword(issue) {
+    const start = '<!-- vzla-closes:start -->';
+    const end = '<!-- vzla-closes:end -->';
+    const block = `${start}\nSub-issue: closes ${hubRef(issue.number)}\n${end}`;
+    const { data: cur } = await github.rest.pulls.get({ owner, repo, pull_number: pr.number });
+    const body = cur.body || '';
+    const re = /<!-- vzla-closes:start -->[\s\S]*?<!-- vzla-closes:end -->/;
+    if (re.test(body) ? body.match(re)[0] === block : false) return;
+    const next = re.test(body) ? body.replace(re, block) : `${body.trimEnd()}\n\n${block}\n`;
+    await github.rest.pulls.update({ owner, repo, pull_number: pr.number, body: next });
+    core.info(`Vínculo "closes ${hubRef(issue.number)}" garantido no corpo do PR`);
+  }
+
   function buildBody() {
     const summary = lib.extractSummary(pr.body) || '_(PR sem resumo)_';
     return [
@@ -235,6 +250,7 @@ module.exports = async ({ github, context, core }) => {
   }
 
   if (parent) await linkParent(parent, issue);
+  await ensureClosingKeyword(issue);
   await setStatus(issue.node_id, PROJECT.inProgress);
 
   const notes = [];
