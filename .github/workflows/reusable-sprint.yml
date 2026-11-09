@@ -1,0 +1,45 @@
+name: Sprint semanal
+
+on:
+  workflow_call:
+    inputs:
+      dry_run:
+        type: boolean
+        default: false
+    secrets:
+      app_id:
+        required: true
+      app_private_key:
+        required: true
+
+jobs:
+  sprint:
+    name: Garante sprint atual e próxima
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: Gera token do App vizzela-labs
+        id: app
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.app_id }}
+          private-key: ${{ secrets.app_private_key }}
+          owner: vizzela-labs
+
+      - name: Baixa os scripts de vizzela-labs/.github
+        uses: actions/checkout@v5
+        with:
+          repository: vizzela-labs/.github
+          ref: main
+          path: .vzla
+          persist-credentials: false
+
+      - name: Cria as sprints que faltam
+        uses: actions/github-script@v8
+        env:
+          DRY_RUN: ${{ inputs.dry_run }}
+        with:
+          github-token: ${{ steps.app.outputs.token }}
+          script: return await require('./.vzla/scripts/sprint.js')({ github, core })

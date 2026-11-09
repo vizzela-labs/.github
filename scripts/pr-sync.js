@@ -1,6 +1,7 @@
 // Mantém uma sub-issue no vzla-backlog espelhando o ciclo de vida de um PR.
 // Roda com o token do GitHub App vizzela-labs (issues:write, organization_projects:write).
 const lib = require('./lib.js');
+const sprint = require('./sprint.js');
 
 const HUB = { owner: 'vizzela-labs', repo: 'vzla-backlog' };
 const PROJECT = {
@@ -86,10 +87,34 @@ module.exports = async ({ github, context, core }) => {
       );
       if (cur.node?.fieldValueByName?.optionId === optionId) {
         core.info(`Status no projeto: ${STATUS_NAME[optionId]}`);
-        return;
+        return itemId;
       }
     }
     core.warning(`Status no projeto não ficou em ${STATUS_NAME[optionId]} após 3 tentativas.`);
+    return itemId;
+  }
+
+  // Coloca o item na sprint atual, se ainda não tiver sprint.
+  async function setCurrentSprintIfEmpty(itemId) {
+    try {
+      const cur = await github.graphql(
+        `query($id:ID!){node(id:$id){... on ProjectV2Item{fieldValueByName(name:"Iteration"){... on ProjectV2ItemFieldIterationValue{iterationId}}}}}`,
+        { id: itemId },
+      );
+      if (cur.node?.fieldValueByName?.iterationId) return;
+      const current = sprint.sprintAt(await sprint.readIterations(github), sprint.todaySP());
+      if (!current) {
+        core.warning('Não existe sprint para a semana atual; item ficou sem sprint. Rode o workflow "Sprint semanal".');
+        return;
+      }
+      await github.graphql(
+        `mutation($p:ID!,$i:ID!,$f:ID!,$it:String!){updateProjectV2ItemFieldValue(input:{projectId:$p,itemId:$i,fieldId:$f,value:{iterationId:$it}}){projectV2Item{id}}}`,
+        { p: PROJECT.id, i: itemId, f: sprint.FIELD_ID, it: current.id },
+      );
+      core.info(`Sprint: ${current.title}`);
+    } catch (e) {
+      core.warning(`Não consegui definir a sprint: ${e.message}`);
+    }
   }
 
   async function currentParentNumber(issueNumber) {
@@ -251,7 +276,8 @@ module.exports = async ({ github, context, core }) => {
 
   if (parent) await linkParent(parent, issue);
   await ensureClosingKeyword(issue);
-  await setStatus(issue.node_id, PROJECT.inProgress);
+  const itemId = await setStatus(issue.node_id, PROJECT.inProgress);
+  await setCurrentSprintIfEmpty(itemId);
 
   const notes = [];
   if (!parentRef) {
