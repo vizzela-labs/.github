@@ -31,6 +31,16 @@ module.exports = async ({ github, context, core }) => {
   // Relê as labels: quem cria o PR via CLI/API aplica labels logo depois do "opened",
   // então o payload do evento pode vir sem elas.
   const { data: fresh } = await github.rest.pulls.get({ owner, repo, pull_number: pr.number });
+  // Trunk-based em cima da dev: feature → dev (QA), dev → main = release (Done), hotfix/* → main.
+  const TRUNK = 'dev';
+  const PROD = 'main';
+  const isRelease = pr.base.ref === PROD && pr.head.ref === TRUNK;
+  const toTrunk = pr.base.ref === TRUNK;
+  const isBot = pr.user?.type === 'Bot' || /\[bot\]$/.test(pr.user?.login || '');
+  if (isBot && !(action === 'closed' && isRelease)) {
+    core.info('PR de bot: nada a fazer.');
+    return;
+  }
   if (fresh.labels.some((l) => l.name === 'no-issue')) {
     core.info('PR com label no-issue: nada a fazer.');
     return;
@@ -228,6 +238,57 @@ module.exports = async ({ github, context, core }) => {
     core.info(`Homologação anunciada em ${hubRef(parent.number)}`);
   }
 
+  async function closeParentIfDone(issue) {
+    const parentNumber = await currentParentNumber(issue.number);
+    if (!parentNumber) return null;
+    await lib.sleep(3000); // deixa o resumo de sub-issues da mãe atualizar
+    const parent = await getHubIssue(parentNumber);
+    const s = parent?.sub_issues_summary;
+    // Tarefas "- [ ]" no corpo da mãe = etapas que não são PRs; enquanto houver, ela fica aberta.
+    const pendingTasks = (lib.stripComments(parent?.body || '').match(/^\s*[-*] \[ \]/gm) || []).length;
+    if (parent && parent.state === 'open' && s && s.total > 0 && s.completed === s.total && pendingTasks > 0) {
+      return `- **Issue-mãe:** ${hubRef(parent.number)}: todas as sub-issues concluídas, mas ficou aberta por ter ${pendingTasks} tarefa(s) pendente(s) no checklist`;
+    }
+    if (parent && parent.state === 'open' && s && s.total > 0 && s.completed === s.total) {
+      await github.rest.issues.update({ ...HUB, issue_number: parent.number, state: 'closed', state_reason: 'completed' });
+      await setStatus(parent.node_id, PROJECT.done);
+      return `- **Issue-mãe:** ${hubRef(parent.number)}: todas as sub-issues concluídas, fechada ✅`;
+    }
+    return parent ? `- **Issue-mãe:** ${hubRef(parent.number)} (${s ? `${s.completed}/${s.total}` : '?'} sub-issues concluídas)` : null;
+  }
+
+  // Release (dev → main): os PRs incluídos saem dos commits da release (squash "(#N)" ou
+  // "Merge pull request #N"); a sub-issue de cada um vem do comentário de rastreamento do PR.
+  async function handleRelease() {
+    const commits = await github.paginate(github.rest.pulls.listCommits, { owner, repo, pull_number: pr.number, per_page: 100 });
+    const nums = new Set();
+    for (const c of commits) {
+      const first = c.commit.message.split('\n')[0];
+      const m = first.match(/\(#(\d+)\)\s*$/) || first.match(/^Merge pull request #(\d+)/);
+      if (m && Number(m[1]) !== pr.number) nums.add(Number(m[1]));
+    }
+    const closed = [];
+    for (const n of nums) {
+      const cs = await github.paginate(github.rest.issues.listComments, { owner, repo, issue_number: n, per_page: 100 });
+      const tag = cs.find((c) => c.user?.type === 'Bot' && c.body?.includes(COMMENT_TAG));
+      const m = tag && /vzla-sub-issue:\s*(\d+)/.exec(tag.body);
+      if (!m) continue;
+      const sub = await getHubIssue(Number(m[1]));
+      if (!sub) continue;
+      if (sub.state === 'open') {
+        await github.rest.issues.update({ ...HUB, issue_number: sub.number, state: 'closed', state_reason: 'completed' });
+      }
+      await setStatus(sub.node_id, PROJECT.done);
+      const parentLine = await closeParentIfDone(sub);
+      closed.push(`- ${owner}/${repo}#${n} → ${hubRef(sub.number)} Done${parentLine ? ' · ' + parentLine.replace(/^- /, '') : ''}`);
+    }
+    await github.rest.issues.createComment({
+      owner, repo, issue_number: pr.number,
+      body: ['### 🚀 Release em produção', `${nums.size} PR(s) na release; ${closed.length} sub-issue(s) fechada(s):`, ...closed].join('\n'),
+    });
+    core.info(`Release: ${closed.length} sub-issue(s) fechada(s)`);
+  }
+
   function buildBody() {
     const summary = lib.extractSummary(pr.body) || '_(PR sem resumo)_';
     return [
@@ -245,6 +306,10 @@ module.exports = async ({ github, context, core }) => {
   }
 
   // ---------- fluxo ----------
+  if (action === 'closed' && isRelease) {
+    if (pr.merged) await handleRelease();
+    return;
+  }
   const comment = await findStickyComment();
   loadHistory(comment);
   let issue = await findSubIssue(comment);
@@ -255,6 +320,24 @@ module.exports = async ({ github, context, core }) => {
       return;
     }
     const merged = Boolean(pr.merged);
+    if (merged && toTrunk) {
+      if (issue.state === 'closed') {
+        await github.rest.issues.update({ ...HUB, issue_number: issue.number, state: 'open' });
+      }
+      await setStatus(issue.node_id, PROJECT.qa);
+      const parentNumber = await currentParentNumber(issue.number);
+      addEvent('Mergeado na dev', `Mergeado na dev por ${pr.merged_by?.login || 'alguém'}: em homologação até a release da sprint`);
+      await upsertComment(comment, [
+        `${COMMENT_TAG}: ${issue.number} -->`,
+        '### 🔗 Rastreamento',
+        `- **Sub-issue:** ${hubRef(issue.number)} → QA (na dev; vira Done quando a release da sprint for para a main)`,
+        parentNumber ? `- **Issue-mãe:** ${hubRef(parentNumber)}` : null,
+        ...historyBlock(),
+        '',
+        '<sub>Atualizado automaticamente pelo workflow PR padrão. [Convenções](https://github.com/vizzela-labs/.github/blob/main/CONTRIBUTING.md)</sub>',
+      ]);
+      return;
+    }
     if (issue.state === 'open') {
       await github.rest.issues.update({
         ...HUB, issue_number: issue.number, state: 'closed', state_reason: merged ? 'completed' : 'not_planned',
@@ -262,26 +345,7 @@ module.exports = async ({ github, context, core }) => {
     }
     await setStatus(issue.node_id, PROJECT.done);
 
-    let parentLine = null;
-    if (merged) {
-      const parentNumber = await currentParentNumber(issue.number);
-      if (parentNumber) {
-        await lib.sleep(3000); // deixa o resumo de sub-issues da mãe atualizar
-        const parent = await getHubIssue(parentNumber);
-        const s = parent?.sub_issues_summary;
-        // Tarefas "- [ ]" no corpo da mãe = etapas que não são PRs; enquanto houver, ela fica aberta.
-        const pendingTasks = (lib.stripComments(parent?.body || '').match(/^\s*[-*] \[ \]/gm) || []).length;
-        if (parent && parent.state === 'open' && s && s.total > 0 && s.completed === s.total && pendingTasks > 0) {
-          parentLine = `- **Issue-mãe:** ${hubRef(parent.number)}: todas as sub-issues concluídas, mas ficou aberta por ter ${pendingTasks} tarefa(s) pendente(s) no checklist`;
-        } else if (parent && parent.state === 'open' && s && s.total > 0 && s.completed === s.total) {
-          await github.rest.issues.update({ ...HUB, issue_number: parent.number, state: 'closed', state_reason: 'completed' });
-          await setStatus(parent.node_id, PROJECT.done);
-          parentLine = `- **Issue-mãe:** ${hubRef(parent.number)}: todas as sub-issues concluídas, fechada ✅`;
-        } else if (parent) {
-          parentLine = `- **Issue-mãe:** ${hubRef(parent.number)} (${s ? `${s.completed}/${s.total}` : '?'} sub-issues concluídas)`;
-        }
-      }
-    }
+    let parentLine = merged ? await closeParentIfDone(issue) : null;
     if (!parentLine) {
       const parentNumber = await currentParentNumber(issue.number);
       if (parentNumber) parentLine = `- **Issue-mãe:** ${hubRef(parentNumber)}`;

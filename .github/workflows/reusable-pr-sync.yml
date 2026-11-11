@@ -11,7 +11,10 @@ on:
 jobs:
   sync:
     name: Sincroniza sub-issue
-    if: ${{ !endsWith(github.event.pull_request.user.login, '[bot]') }}
+    # PRs de bot são ignorados, exceto o merge da release (dev → main), que fecha as sub-issues.
+    if: >-
+      !endsWith(github.event.pull_request.user.login, '[bot]') ||
+      (github.event.action == 'closed' && github.event.pull_request.head.ref == 'dev' && github.event.pull_request.base.ref == 'main')
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:

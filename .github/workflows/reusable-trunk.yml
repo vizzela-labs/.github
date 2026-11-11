@@ -1,0 +1,43 @@
+name: Tronco · release e sincronização
+
+on:
+  workflow_call:
+
+jobs:
+  tronco:
+    name: Release / sincronização
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    concurrency:
+      group: tronco
+      cancel-in-progress: false
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Checkout completo do repo
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Baixa os scripts de vizzela-labs/.github
+        uses: actions/checkout@v5
+        with:
+          repository: vizzela-labs/.github
+          ref: main
+          path: .vzla
+          persist-credentials: false
+
+      - name: Push na dev → atualiza o PR de release
+        if: github.ref == 'refs/heads/dev'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: bash .vzla/scripts/trunk.sh release
+
+      - name: Push na main → leva a main de volta para a dev
+        if: github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: bash .vzla/scripts/trunk.sh sync

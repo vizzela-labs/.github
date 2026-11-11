@@ -1,0 +1,18 @@
+# Gerado a partir de vizzela-labs/.github. Trunk-based em cima da dev:
+#   feature/*  → PR para a dev (tronco; ambiente de dev/QA)
+#   dev        → PR de release para a main ao fim da sprint (aberto e atualizado sozinho)
+#   hotfix/*   → PR para a main; a main volta para a dev sozinha
+# Convenções: https://github.com/vizzela-labs/.github/blob/main/CONTRIBUTING.md
+name: Tronco
+
+on:
+  push:
+    branches: [dev, main]
+  workflow_dispatch:
+
+jobs:
+  tronco:
+    uses: vizzela-labs/.github/.github/workflows/reusable-trunk.yml@main
+    permissions:
+      contents: write
+      pull-requests: write

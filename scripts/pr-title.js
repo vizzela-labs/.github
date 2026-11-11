@@ -25,6 +25,21 @@ module.exports = async ({ github, context, core }) => {
 
   core.info(`OK: tipo=${parsed.type} escopo=${parsed.scope} breaking=${parsed.breaking}`);
 
+  // Trunk-based: nos repos com branch dev, a main só recebe a release (dev) ou hotfix/*.
+  if (pr.base.ref === 'main' && pr.head.ref !== 'dev' && !pr.head.ref.startsWith('hotfix/')) {
+    const hasDev = await github.rest.repos.getBranch({ owner, repo, branch: 'dev' }).then(() => true, () => false);
+    if (hasDev) {
+      core.setFailed(
+        [
+          `PR para a main vindo de "${pr.head.ref}".`,
+          'Neste repo o tronco é a dev: abra o PR com base **dev**.',
+          'Para a main só vão a release da sprint (dev → main) e correções urgentes em branches hotfix/*.',
+        ].join('\n'),
+      );
+      return;
+    }
+  }
+
   const want = [lib.TYPES[parsed.type].label];
   if (parsed.breaking) want.push('breaking');
   const current = pr.labels.map((l) => l.name);
