@@ -11,7 +11,11 @@ Mexeu em UI? Coloque print ou vídeo.
 
 ## Como testar
 
-<!-- Passo a passo para validar: ambiente, dados, URLs, comandos. -->
+<!--
+Obrigatório (o check "Como testar" fica vermelho se estiver vazio). Direto, sem enrolação:
+1. Link do ambiente já buildado: o preview do PR (<app>-pr-<nº>.equipevizzela.com.br, sobe sozinho quando o PR sai do rascunho) ou o ambiente de dev.
+2. Os passos: onde clicar ou o que chamar, e o que deve aparecer.
+-->
 
 ## Issue-mãe
 

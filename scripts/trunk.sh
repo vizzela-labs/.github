@@ -62,7 +62,7 @@ if [ "$MODE" = "release" ]; then
   done
   body="## Resumo
 
-Release da sprint: leva para a **$PROD** (produção) tudo o que foi integrado na **$TRUNK** desde a última release.
+Release: leva para a **$PROD** (produção) tudo o que foi integrado na **$TRUNK** desde a última release. Qualquer dev pode mergear.
 
 ## PRs incluídos (${#nums[@]})
 
@@ -71,7 +71,7 @@ $list
 
 1. Confira no ambiente de dev que tudo acima passou no QA.
 2. Revise e faça o merge deste PR (**sem squash**, para a $TRUNK e a $PROD manterem o mesmo histórico).
-3. O deploy de produção roda sozinho, e as sub-issues destes PRs vão para **Done**.
+3. O deploy de produção roda sozinho, e as sub-issues destes PRs vão para **Em produção**. Depois de conferir, um dev move cada uma para **Done** no board.
 
 <sub>PR mantido automaticamente pelo fluxo de tronco (vizzela-labs/.github). Atualizado a cada merge na $TRUNK.</sub>"
   if [ -z "$existing" ]; then

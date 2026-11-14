@@ -42,23 +42,39 @@ A **dev** é o tronco (e a branch padrão dos repos). A **main** é o que está 
 | Branch | Sai de | PR para | Quando |
 |---|---|---|---|
 | `tipo/<nº>-slug` (feature, fix...) | `dev` | `dev` | Todo trabalho do dia a dia. Branches curtas: poucos dias, PRs pequenos |
-| `dev` | — | `main` | Release no **fim de cada sprint**. O PR `chore(release): dev → main` é aberto e atualizado sozinho |
+| `dev` | — | `main` | Release. O PR `chore(release): dev → main` fica sempre montado; **qualquer dev** mergeia quando a coluna QA estiver aprovada, avisando o time |
 | `hotfix/<nº>-slug` | `main` | `main` | Só correção urgente em produção. Depois do merge, a main volta para a dev sozinha |
 
-- **A dev precisa estar sempre pronta para ir para produção.** A release leva tudo o que está nela: o que estiver pela metade entra desligado por uma flag ou não entra.
+- **A dev precisa estar sempre pronta para ir para produção.** A release leva tudo o que está nela: só sai com as features completas; se precisar soltar antes, a parte pela metade fica escondida por uma variável de ambiente.
 - **Merge da release sem squash**, para a dev e a main manterem o mesmo histórico.
 - Um PR para a main que não venha da dev nem de `hotfix/*` deixa o check **Título** vermelho.
 - Nunca commite direto na dev nem na main: sempre por PR.
+
+## Regras do fluxo
+
+| Regra | Como funciona |
+|---|---|
+| **Caminho da issue** | Quem pega a issue escolhe e marca no `vzla-backlog`: sem label = padrão; `plan`, `quick-spec`, `spec` ou `bugfix-spec`. Só vai para o planning (label `planning`) o que afeta padrão ou longevidade: serviço novo, contrato usado por outro app, troca de lib ou convenção |
+| **Review por outro dev, sorteado** | Quando o PR sai do rascunho, a automação pede review de um dev sorteado (menos o autor). Sem cargos; vale para PR único ou pilha de PRs. A lista está em [`scripts/devs.json`](scripts/devs.json) |
+| **Como testar** | Todo PR traz o link do ambiente já buildado e os passos, direto. Seção vazia = check **Como testar** vermelho |
+| **Preview por PR** | PR para a `dev` sobe sozinho em `<app>-pr-<nº>.equipevizzela.com.br`, com as variáveis do ambiente de dev |
+| **QA sorteado** | No merge na `dev`, a automação sorteia um dev (menos o autor) para testar no ambiente de dev junto com quem pediu |
+| **Spec** | Fica no repo do back, em `specs/<nº>-slug/` (`requisitos.md` ou `bugfix.md`, `design.md`, `contrato.yaml`, `tarefas.md`). PR que mexe em `specs/` precisa de 2 aprovações (back e front): sem elas, o check **Spec: aprovações** fica vermelho, sem bloquear |
+| **Mock do front** | Dentro do front, com MSW, em `src/mocks/<nº>-slug/`, gerado do contrato. Sai no PR de integração; mock indo para a `main` deixa o check **Release: sem mock** vermelho |
+| **Pronto é manual** | Release e hotfix levam o item para **Em produção**. Um dev move para **Done** no board depois de conferir em produção. Nenhuma automação marca Done |
+
+Nenhum desses checks bloqueia o merge (o plano Free não bloqueia em repo privado): eles avisam, e o combinado é não mergear com check vermelho.
 
 ## O que acontece automaticamente
 
 | Quando | O que a automação faz |
 |---|---|
 | PR aberto / reaberto / editado | Cria (ou atualiza) a sub-issue `[repo] título do PR` no `vzla-backlog`, pendura na issue-mãe, coloca no projeto **Tecnologia Vizzela** como *In progress*, atribui ao autor e comenta no PR com os links. |
-| PR mergeado na **dev** | Sub-issue continua aberta, em *QA* (está no ambiente de dev) |
-| **Release** (dev → main) mergeada | As sub-issues de todos os PRs da release vão para *Done*. A issue-mãe fecha quando todas as filhas fecham e não há tarefas `- [ ]` pendentes nela |
-| **Hotfix** mergeado na main | Sub-issue → *Done*; a main é levada de volta para a dev por merge (com conflito, abre um PR de sincronização) |
-| PR fechado sem merge | Fecha a sub-issue como *not planned* → *Done*. A mãe não é tocada. |
+| PR sai do rascunho | Pede review de um dev sorteado e sobe o preview do PR |
+| PR mergeado na **dev** | Sub-issue continua aberta, em *QA* (está no ambiente de dev), com um dev sorteado como QA |
+| **Release** (dev → main) mergeada | As sub-issues de todos os PRs da release vão para *Em produção*. Um dev move cada uma para *Done* depois de conferir |
+| **Hotfix** mergeado na main | Sub-issue → *Em produção*; a main é levada de volta para a dev por merge (com conflito, abre um PR de sincronização) |
+| PR fechado sem merge | Fecha a sub-issue como *not planned*. A mãe não é tocada. |
 | PR aberto / reaberto / saiu de draft | O **Claude** revisa o PR seguindo [`review/diretrizes.md`](review/diretrizes.md): comentários inline só para problemas concretos (🔴/🟡/🔵) e um resumo com veredito. É consultivo: não aprova, não bloqueia, não commita. |
 | Comentário com `@claude ...` no PR | O Claude responde no PR: tira dúvida, explica trecho ou faz outra rodada de review. |
 

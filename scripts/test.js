@@ -35,4 +35,33 @@ assert.equal(lib.extractSummary(body), 'Faz X e Y.');
 assert.equal(lib.extractSummary('## Resumo\nsó isso'), 'só isso');
 assert.equal(lib.extractSummary('sem seções'), '');
 
+// seções do corpo (Como testar)
+const prBody = '## Resumo\nX\n\n## Como testar\n\n<!-- passo a passo -->\n\n## Issue-mãe\nIssue-mãe:';
+assert.equal(lib.extractSection(prBody, 'Como testar'), '');
+assert.equal(lib.extractSection('## Como testar\nAbra https://lojas-dev-pr-3.equipevizzela.com.br e clique em Salvar', 'Como testar'),
+  'Abra https://lojas-dev-pr-3.equipevizzela.com.br e clique em Salvar');
+assert.equal(lib.extractSection('## Como testar\npasso 1\n## Checklist\n- [ ] x', 'Como testar'), 'passo 1');
+
+// sorteio
+assert.equal(lib.pickRandom(['a', 'b', 'c'], ['A'], () => 0), 'b');
+assert.equal(lib.pickRandom(['a', 'b', 'c'], ['a'], () => 0.99), 'c');
+assert.equal(lib.pickRandom(['a'], ['a']), null);
+assert.equal(lib.pickRandom(['a', 'b'], [undefined, null], () => 0), 'a');
+assert.ok(Array.isArray(lib.DEVS) && lib.DEVS.length > 0);
+
+// mock e spec
+assert.equal(lib.isMockPath('src/mocks/42-cashback/handlers.ts'), true);
+assert.equal(lib.isMockPath('apps/web/src/mocks/browser.ts'), true);
+assert.equal(lib.isMockPath('src/mocksx/a.ts'), false);
+assert.equal(lib.isMockPath('test/mocks/a.ts'), false);
+assert.equal(lib.isSpecPath('specs/42-cashback/contrato.yaml'), true);
+assert.equal(lib.isSpecPath('docs/specs/x.md'), true);
+assert.equal(lib.isSpecPath('src/specsheet.ts'), false);
+
+// preview: só para PR com a base certa
+assert.equal(lib.previewUrl('vzla-cashback', 12, 'dev'), 'https://cashback-dev-pr-12.equipevizzela.com.br');
+assert.equal(lib.previewUrl('vzla-cashback', 12, 'main'), null);
+assert.equal(lib.previewUrl('vzla-panel-hub', 7, 'main'), 'https://hub-pr-7.equipevizzela.com.br');
+assert.equal(lib.previewUrl('vzla-lojas-pdv', 7, 'dev'), null);
+
 console.log('ok: todos os testes passaram');
