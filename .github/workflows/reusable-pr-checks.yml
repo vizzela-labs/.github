@@ -22,7 +22,8 @@ jobs:
           persist-credentials: false
       - uses: actions/github-script@v8
         with:
-          script: return await require('./.vzla/scripts/pr-checks.js')({ github, context, core, mode: 'como-testar' })
+          script: |
+            return await require('./.vzla/scripts/pr-checks.js')({ github, context, core, mode: 'como-testar' })
 
   spec:
     name: 'Spec: aprovações'
@@ -40,7 +41,8 @@ jobs:
           persist-credentials: false
       - uses: actions/github-script@v8
         with:
-          script: return await require('./.vzla/scripts/pr-checks.js')({ github, context, core, mode: 'spec' })
+          script: |
+            return await require('./.vzla/scripts/pr-checks.js')({ github, context, core, mode: 'spec' })
 
   mock:
     name: 'Release: sem mock'
@@ -58,7 +60,8 @@ jobs:
           persist-credentials: false
       - uses: actions/github-script@v8
         with:
-          script: return await require('./.vzla/scripts/pr-checks.js')({ github, context, core, mode: 'mock' })
+          script: |
+            return await require('./.vzla/scripts/pr-checks.js')({ github, context, core, mode: 'mock' })
 
   revisor:
     name: Revisor sorteado
@@ -79,4 +82,5 @@ jobs:
           persist-credentials: false
       - uses: actions/github-script@v8
         with:
-          script: return await require('./.vzla/scripts/pr-checks.js')({ github, context, core, mode: 'revisor' })
+          script: |
+            return await require('./.vzla/scripts/pr-checks.js')({ github, context, core, mode: 'revisor' })
