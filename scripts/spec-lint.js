@@ -82,4 +82,27 @@ function lintSpec(files) {
   return { errors, warnings };
 }
 
-module.exports = { specDirs, lintSpec, section };
+/** Arquivos de migration (Prisma, Knex, TypeORM, SQL solto em migrations/). */
+const isMigrationPath = (p) => /(^|\/)(prisma\/)?migrations\/.+\.(sql|ts|js)$/.test(p) && !/migration_lock\.toml$/.test(p);
+
+// O que apaga ou reescreve dado. Comentários SQL (-- …) e JS (// …) são ignorados.
+const DESTRUCTIVE = [
+  [/\bDROP\s+(TABLE|COLUMN|SCHEMA|TYPE|VIEW|MATERIALIZED\s+VIEW)\b/i, 'DROP'],
+  [/\bTRUNCATE\b/i, 'TRUNCATE'],
+  [/\bDELETE\s+FROM\b/i, 'DELETE FROM'],
+  [/\bRENAME\s+(COLUMN|TO)\b/i, 'RENAME'],
+  [/\bALTER\s+COLUMN\s+\S+\s+(SET\s+DATA\s+)?TYPE\b/i, 'troca de tipo de coluna'],
+  [/\bSET\s+NOT\s+NULL\b/i, 'SET NOT NULL em coluna existente'],
+  [/\.(dropTable|dropColumn|dropSchema|renameColumn|renameTable)\s*\(/, 'drop/rename (knex)'],
+];
+/** Operações destrutivas num arquivo de migration: [{ op, line }]. */
+function destructiveOps(text) {
+  const out = [];
+  (text || '').split('\n').forEach((raw, i) => {
+    const l = raw.replace(/--.*$/, '').replace(/\/\/.*$/, '');
+    for (const [re, op] of DESTRUCTIVE) if (re.test(l)) out.push({ op, line: i + 1, text: raw.trim().slice(0, 140) });
+  });
+  return out;
+}
+
+module.exports = { specDirs, lintSpec, section, isMigrationPath, destructiveOps };

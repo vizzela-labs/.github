@@ -95,6 +95,17 @@ const dir = path.join(__dirname, '..', 'specs-modelo');
 const modelo = Object.fromEntries(fs.readdirSync(dir).filter((f) => /\.(md|ya?ml)$/.test(f) && f !== 'README.md').map((f) => [f, fs.readFileSync(path.join(dir, f), 'utf8')]));
 assert.deepEqual(spec.lintSpec(modelo).errors, []);
 
+// migration destrutiva
+assert.equal(spec.isMigrationPath('prisma/migrations/2026_x/migration.sql'), true);
+assert.equal(spec.isMigrationPath('migrations/20260518_prefix.ts'), true);
+assert.equal(spec.isMigrationPath('prisma/migrations/migration_lock.toml'), false);
+assert.equal(spec.isMigrationPath('src/migrations.ts'), false);
+assert.deepEqual(spec.destructiveOps('ALTER TABLE "a" ADD COLUMN "b" INT;\nCREATE INDEX x ON a(b);'), []);
+assert.deepEqual(spec.destructiveOps('-- DROP TABLE antigo\nALTER TABLE "a" DROP COLUMN "b";').map((o) => [o.op, o.line]), [['DROP', 2]]);
+assert.equal(spec.destructiveOps('ALTER TABLE "t" ALTER COLUMN "c" SET DATA TYPE TEXT;')[0].op, 'troca de tipo de coluna');
+assert.equal(spec.destructiveOps('await knex.schema.alterTable("t", (t) => t.dropColumn("x"))')[0].op, 'drop/rename (knex)');
+assert.deepEqual(spec.destructiveOps('ALTER TABLE "tax_rules" DROP CONSTRAINT "x";'), []);
+
 // sprint de 15 dias
 const sprint = require('./sprint.js');
 const it = (startDate, duration) => ({ startDate, duration });

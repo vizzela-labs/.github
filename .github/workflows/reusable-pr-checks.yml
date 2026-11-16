@@ -109,6 +109,26 @@ jobs:
             exit 1
           fi
 
+  migration:
+    name: 'Migration destrutiva'
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          repository: vizzela-labs/.github
+          ref: main
+          path: .vzla
+          persist-credentials: false
+      - uses: actions/github-script@v8
+        with:
+          script: |
+            return await require('./.vzla/scripts/pr-checks.js')({ github, context, core, mode: 'migration' })
+
   mock:
     name: 'Release: sem mock'
     if: github.event_name == 'pull_request' && github.event.pull_request.base.ref == 'main'

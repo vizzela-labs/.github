@@ -109,6 +109,7 @@ const PREVIEWS = {
   'vzla-lojas-admin': { prefix: 'lojas-dev', bases: ['dev'] },
   'vzla-lojas-api': { prefix: 'api-lojas-dev', bases: ['dev'] },
   'vzla-zendesk-gateway': { prefix: 'zendesk-gateway-dev', bases: ['dev'] },
+  'vizzela-data-adm': { prefix: 'etl-observador-dev', bases: ['dev'] },
 };
 // Onde cada back publica o OpenAPI gerado do código (@nestjs/swagger). Usado pelo check
 // "Contrato × preview", que compara specs/*/contrato.yaml com o que o preview responde.

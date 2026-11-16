@@ -5,24 +5,27 @@
 const lib = require('./lib.js');
 
 const BACKS = ['vzla-cashback', 'vzla-tracking', 'vzla-data-hub', 'vizzela-products-backend', 'vzla-gerencial',
-  'vzla-marketplaces-api', 'vizzela-sales-dash', 'vzla-zendesk-gateway', 'vzla-lojas-api', 'vizzela-data-adm'];
+  'vzla-marketplaces-api', 'vizzela-sales-dash', 'vzla-zendesk-gateway', 'vzla-lojas-api', 'vizzela-data-adm', 'vz-ra'];
 const FRONTS = {
   'vzla-lojas-admin': 'vzla-lojas-api',
   'vzla-lojas-pdv': 'vzla-lojas-api',
   'vizzela-adm-pannel': 'vizzela-products-backend',
   'vzla-panel-hub': 'o back dono da API (vzla-data-hub, vzla-gerencial, vzla-cashback…)',
 };
-const MONO = { 'vzla-lojas': { back: 'api', fronts: ['admin', 'pdv'] } };
+const MONO = {
+  'vzla-lojas': { back: 'api', fronts: ['admin', 'pdv'] },
+  'vizzela-adm-stores': { back: 'backend', fronts: ['frontend'] },
+};
 
 const START = '<!-- vzla:fluxo -->';
 const END = '<!-- /vzla:fluxo -->';
 
 function section(repo) {
   const p = lib.PREVIEWS[repo];
-  const preview = p ? `\`https://${p.prefix}-pr-<nº>.equipevizzela.com.br\` (sobe sozinho quando o PR para a \`dev\` sai do rascunho)` : 'o ambiente de dev (este repo não tem preview por PR)';
+  const preview = p ? `o link de \`https://${p.prefix}-pr-<nº>.equipevizzela.com.br\` (sobe sozinho quando o PR para a \`dev\` sai do rascunho)` : 'o link do ambiente de dev (este repo não tem preview por PR)';
   const comum = [
     `- **Branches:** a \`dev\` é o tronco; a \`main\` é produção. Trabalho em \`tipo/<nº>-slug\` saindo da \`dev\`, PR para a \`dev\` (o nº é a issue do \`vzla-backlog\`). Urgência em produção: \`hotfix/<nº>-slug\` saindo da \`main\`.`,
-    `- **PR:** título \`tipo(escopo): descrição\`. A seção **Como testar** é obrigatória: link de ${preview} e os passos, direto.`,
+    `- **PR:** título \`tipo(escopo): descrição\`. A seção **Como testar** é obrigatória: ${preview} e os passos, direto.`,
     `- **Antes de entregar:** a \`dev\` vai inteira para produção na release. Nada pela metade visível: esconda atrás de variável de ambiente.`,
     `- **Agente (Claude, Codex…):** nunca mergeia, nunca aprova, nunca marca Done, nunca commita direto na \`dev\` ou na \`main\` e nunca usa \`--force\`. Abre PR e deixa outro dev revisar.`,
   ];

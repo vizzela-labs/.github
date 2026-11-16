@@ -4,10 +4,11 @@
 //   spec         → PR que mexe em specs/ precisa de 2 aprovações (back e front)
 //   spec-formato → requisitos em EARS, bugfix com HOJE/ESPERADO/INALTERADO, sem pergunta em aberto;
 //                  devolve em `contratos` os contrato.yaml para o Redocly validar
+//   migration    → migration que apaga ou reescreve dado: backup antes da release e aviso no PR
 //   mock         → nada de src/mocks/ chegando na main (o mock do front sai antes da release)
 //   revisor      → sorteia outro dev para revisar, se ninguém foi pedido ainda
 const lib = require('./lib.js');
-const { specDirs, lintSpec } = require('./spec-lint.js');
+const { specDirs, lintSpec, isMigrationPath, destructiveOps } = require('./spec-lint.js');
 
 const TRUNK = 'dev';
 const PROD = 'main';
@@ -88,6 +89,23 @@ module.exports = async ({ github, context, core, mode }) => {
       );
     }
     return core.info('Spec no formato.');
+  }
+
+  if (mode === 'migration') {
+    const files = await github.paginate(github.rest.pulls.listFiles, { owner, repo, pull_number: pr.number, per_page: 100 });
+    const migs = files.filter((f) => f.status !== 'removed' && isMigrationPath(f.filename));
+    if (!migs.length) return core.info('PR sem migration.');
+    const found = [];
+    for (const f of migs) {
+      const { data } = await github.rest.repos.getContent({ owner, repo, path: f.filename, ref: pr.head.sha });
+      for (const o of destructiveOps(Buffer.from(data.content, 'base64').toString('utf8'))) found.push(`${f.filename}:${o.line} ${o.op}: ${o.text}`);
+    }
+    if (!found.length) return core.info(`${migs.length} migration(s), nenhuma destrutiva.`);
+    const ok = /backup/i.test(lib.extractSection(pr.body, 'Como testar')) || /backup/i.test(lib.extractSection(pr.body, 'Por quê'));
+    const msg = `Migration que apaga ou reescreve dado (roda sozinha no deploy):\n${found.slice(0, 20).map((x) => `  - ${x}`).join('\n')}\n` +
+      'Antes da release: backup manual do banco de produção no Coolify (Backups → Backup Now) e, se possível, a migration em duas etapas (expandir e depois contrair). ' +
+      'Diga no PR como volta atrás; com a palavra "backup" no Como testar ou no Por quê, isto vira só aviso.';
+    return ok ? core.warning(msg) : core.setFailed(msg);
   }
 
   if (mode === 'mock') {
