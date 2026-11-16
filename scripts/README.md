@@ -5,7 +5,10 @@
 | `lib.js` | Regras compartilhadas: parse do título, da issue-mãe e do resumo; labels. |
 | `pr-title.js` | Usado por `reusable-pr-title.yml`: valida o título e aplica a label de tipo. |
 | `pr-sync.js` | Usado por `reusable-pr-sync.yml`: cria, atualiza e fecha a sub-issue no `vzla-backlog` e mexe no Status do projeto. |
-| `pr-checks.js` | Usado por `reusable-pr-checks.yml`: checks **Como testar**, **Spec: aprovações**, **Release: sem mock** e o sorteio do revisor. |
+| `pr-checks.js` | Usado por `reusable-pr-checks.yml`: checks **Como testar**, **Spec: formato**, **Spec: aprovações**, **Release: sem mock** e o sorteio do revisor (o **Spec: contrato** roda o Redocly direto no workflow). |
+| `spec-lint.js` | Formato da spec (EARS, blocos do bugfix, pendências), usado pelo check **Spec: formato**. |
+| `sprint.js` | Usado por `reusable-sprint.yml`: sprints de 15 dias, benchmark e itens abertos para a sprint nova. |
+| `benchmark.js` | Issue **Benchmark · Sprint** com os números da sprint encerrada. |
 | `devs.json` | Devs sorteados para review e QA. Edite aqui quando alguém entrar ou sair do time. |
 | `setup-repo.sh` | Instala o PR padrão num repo: labels, secrets e PR com o workflow. |
 | `test.js` | Testes do `lib.js` (`node scripts/test.js`). |

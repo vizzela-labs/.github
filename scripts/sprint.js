@@ -1,9 +1,13 @@
-// Garante a sprint da semana atual e a da próxima no campo "Iteration" do projeto
-// Tecnologia Vizzela. Sprints semanais começando no domingo, título "Sprint DD/MM/AAAA".
+// Garante a sprint atual e a próxima no campo "Iteration" do projeto Tecnologia Vizzela.
+// Sprints de 15 dias (14 de duração, uma emenda na outra), título "Sprint DD/MM/AAAA".
+// A partir de 15/11/2026; as semanais anteriores ficam como estão.
 // Iterações existentes são reenviadas com o próprio id, o que preserva os itens vinculados.
+const { benchmark } = require('./benchmark.js');
+
 const FIELD_ID = 'PVTIF_lADOFBBL-s4BlX7szhkFER8';
 const PROJECT_ID = 'PVT_kwDOFBBL-s4BlX7s';
 const DAY = 864e5;
+const LEN = 14;
 
 const addDays = (iso, n) => new Date(Date.parse(iso) + n * DAY).toISOString().slice(0, 10);
 const sundayOf = (iso) => addDays(iso, -new Date(Date.parse(iso)).getUTCDay());
@@ -24,26 +28,45 @@ function sprintAt(iterations, iso) {
   return iterations.find((it) => it.startDate <= iso && iso < addDays(it.startDate, it.duration)) || null;
 }
 
+/**
+ * Sprints que faltam criar para existirem a atual e a próxima. Pura (testada em test.js).
+ * A nova começa onde a última termina; se houve um buraco, pula de LEN em LEN até hoje.
+ */
+function plan(all, today) {
+  const wanted = [];
+  let cur = sprintAt(all, today);
+  if (!cur) {
+    const last = all[all.length - 1];
+    let start = last ? addDays(last.startDate, last.duration) : sundayOf(today);
+    if (start > today) start = sundayOf(today);
+    while (addDays(start, LEN) <= today) start = addDays(start, LEN);
+    cur = { startDate: start, duration: LEN };
+    wanted.push(cur);
+  }
+  const next = addDays(cur.startDate, cur.duration);
+  if (!sprintAt(all, next)) wanted.push({ startDate: next, duration: LEN });
+  return wanted;
+}
+
 async function ensureSprints({ github, core, dryRun }) {
   const all = await readIterations(github);
-  const thisWeek = sundayOf(todaySP());
-  const wanted = [thisWeek, addDays(thisWeek, 7)].filter((s) => !sprintAt(all, s));
+  const wanted = plan(all, todaySP()).map((w) => ({ ...w, title: title(w.startDate) }));
   if (!wanted.length) {
-    core.info(`Nada a fazer: já existem a sprint atual e a próxima (${thisWeek}).`);
+    core.info('Nada a fazer: já existem a sprint atual e a próxima.');
     return;
   }
   const iterations = [
     ...all.map((it) => ({ id: it.id, startDate: it.startDate, duration: it.duration, title: it.title })),
-    ...wanted.map((s) => ({ startDate: s, duration: 7, title: title(s) })),
+    ...wanted,
   ];
-  core.info(`Sprints a criar: ${wanted.map(title).join(', ')}`);
+  core.info(`Sprints a criar: ${wanted.map((w) => w.title).join(', ')}`);
   if (dryRun) {
     core.info(`DRY RUN, nada gravado. Configuração que seria enviada:\n${JSON.stringify(iterations, null, 2)}`);
     return;
   }
   await github.graphql(
     `mutation($f:ID!,$c:ProjectV2IterationFieldConfigurationInput!){updateProjectV2Field(input:{fieldId:$f,iterationConfiguration:$c}){projectV2Field{... on ProjectV2IterationField{id}}}}`,
-    { f: FIELD_ID, c: { startDate: iterations[0].startDate, duration: 7, iterations } },
+    { f: FIELD_ID, c: { startDate: iterations[0].startDate, duration: LEN, iterations } },
   );
   // Confere que nenhuma sprint antiga perdeu a identidade (itens vinculados).
   const after = await readIterations(github);
@@ -53,7 +76,7 @@ async function ensureSprints({ github, core, dryRun }) {
     core.setFailed(`ATENÇÃO: sprints recriadas com outro id: ${lost.map((it) => it.title).join(', ')}`);
     return;
   }
-  core.info(`Criadas: ${wanted.map(title).join(', ')}. Sprints existentes preservadas (${all.length}).`);
+  core.info(`Criadas: ${wanted.map((w) => w.title).join(', ')}. Sprints existentes preservadas (${all.length}).`);
 }
 
 // Itens abertos que ficaram numa sprint já encerrada passam para a sprint atual.
@@ -92,9 +115,13 @@ async function carryOver({ github, core, dryRun }) {
 module.exports = async ({ github, core }) => {
   const dryRun = process.env.DRY_RUN === 'true';
   await ensureSprints({ github, core, dryRun });
+  // Antes do carryOver: ele tira da sprint encerrada os itens abertos.
+  await benchmark({ github, core, dryRun, iterations: await readIterations(github), today: todaySP(), addDays });
   await carryOver({ github, core, dryRun });
 };
 module.exports.readIterations = readIterations;
 module.exports.sprintAt = sprintAt;
+module.exports.plan = plan;
+module.exports.addDays = addDays;
 module.exports.todaySP = todaySP;
 module.exports.FIELD_ID = FIELD_ID;

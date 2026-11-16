@@ -44,6 +44,49 @@ jobs:
           script: |
             return await require('./.vzla/scripts/pr-checks.js')({ github, context, core, mode: 'spec' })
 
+  spec-formato:
+    name: 'Spec: formato'
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      contratos: ${{ steps.lint.outputs.contratos }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          repository: vizzela-labs/.github
+          ref: main
+          path: .vzla
+          persist-credentials: false
+      - id: lint
+        uses: actions/github-script@v8
+        with:
+          script: |
+            return await require('./.vzla/scripts/pr-checks.js')({ github, context, core, mode: 'spec-formato' })
+
+  spec-contrato:
+    name: 'Spec: contrato'
+    needs: spec-formato
+    if: always() && needs.spec-formato.outputs.contratos != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Redocly (regras mínimas)
+        env:
+          CONTRATOS: ${{ needs.spec-formato.outputs.contratos }}
+        run: |
+          # shellcheck disable=SC2086 # um caminho por palavra, de propósito
+          npx --yes @redocly/cli@1 lint $CONTRATOS --extends=minimal --format=github-actions
+
   mock:
     name: 'Release: sem mock'
     if: github.event_name == 'pull_request' && github.event.pull_request.base.ref == 'main'

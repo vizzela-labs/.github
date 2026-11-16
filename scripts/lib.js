@@ -16,6 +16,7 @@ const EXTRA_LABELS = {
   'pr-auto': { color: '0e8a16', description: 'Sub-issue gerada automaticamente a partir de um PR' },
   'sem-issue-mae': { color: 'e99695', description: 'PR sem issue-mãe informada' },
   'no-issue': { color: 'cccccc', description: 'Não gerar sub-issue para este PR' },
+  benchmark: { color: '5319e7', description: 'Benchmark e retro do fim da sprint' },
 };
 
 const TYPE_LABELS = Object.values(TYPES).map((t) => t.label);
