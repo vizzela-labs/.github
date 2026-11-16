@@ -2,6 +2,14 @@ name: Tronco · release e sincronização
 
 on:
   workflow_call:
+    secrets:
+      # O PR de release é aberto com o token do App vizzela-labs: o GITHUB_TOKEN não pode criar PR
+      # ("GitHub Actions is not permitted to create or approve pull requests") e, liberando isso,
+      # o Actions também passaria a poder aprovar PR. Sem os secrets, cai no GITHUB_TOKEN.
+      app_id:
+        required: false
+      app_private_key:
+        required: false
 
 jobs:
   tronco:
@@ -20,6 +28,28 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Confere secrets do GitHub App
+        id: guard
+        env:
+          APP_ID: ${{ secrets.app_id }}
+          APP_KEY: ${{ secrets.app_private_key }}
+        run: |
+          if [ -z "$APP_ID" ] || [ -z "$APP_KEY" ]; then
+            echo "::warning::Secrets do App ausentes (passe app_id e app_private_key no tronco.yml). Sem eles o GitHub não deixa o workflow abrir o PR de release."
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Gera token do App vizzela-labs
+        id: app
+        if: steps.guard.outputs.ok == 'true'
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.app_id }}
+          private-key: ${{ secrets.app_private_key }}
+          owner: vizzela-labs
+
       - name: Baixa os scripts de vizzela-labs/.github
         uses: actions/checkout@v5
         with:
@@ -31,13 +61,13 @@ jobs:
       - name: Push na dev → atualiza o PR de release
         if: github.ref == 'refs/heads/dev'
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ steps.app.outputs.token || github.token }}
           REPO: ${{ github.repository }}
         run: bash .vzla/scripts/trunk.sh release
 
       - name: Push na main → leva a main de volta para a dev
         if: github.ref == 'refs/heads/main'
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ steps.app.outputs.token || github.token }}
           REPO: ${{ github.repository }}
         run: bash .vzla/scripts/trunk.sh sync
