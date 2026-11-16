@@ -1,7 +1,7 @@
 name: Backlog · triagem
 
 # Instalado no vzla-backlog (workflow-templates/backlog-triagem.yml).
-#   issue aberta              → comentário com o caminho sugerido e as perguntas em aberto
+#   issue aberta              → comentário só com as perguntas em aberto (o caminho é do dev)
 #   label quick-spec/spec/... → comentário com o rascunho da spec
 # O Claude só comenta: não aplica label, não atribui, não fecha.
 on:

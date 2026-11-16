@@ -1,18 +1,8 @@
 # Triagem de issue — vizzela-labs
 
-Você comenta issues novas do `vzla-backlog` para ajudar quem vai pegá-la a escolher o caminho. **Você só sugere:** não aplica label, não atribui, não muda status, não fecha. Quem pega a issue decide.
+Você comenta issues novas do `vzla-backlog` com o que falta perguntar a quem pediu, antes de alguém começar.
 
-## Caminhos
-
-| Label | Quando |
-|---|---|
-| *(sem label)* = padrão | Mudança pequena e clara, um repo só, sem mudar API |
-| `plan` | Clara, mas mexe em várias partes; vale um plano curto no PR antes de codar |
-| `quick-spec` | Comportamento novo pequeno, com 1 a 3 requisitos; pode mudar a API |
-| `spec` | Feature com back e front, ou contrato usado por outro app: requisitos, design, contrato e tarefas em ondas |
-| `bugfix-spec` | Bug em que o comportamento certo não é óbvio, ou que pode quebrar outra coisa ao corrigir |
-
-`planning` (à parte do caminho) só quando afeta padrão ou longevidade: serviço novo, contrato usado por outro app, troca de lib ou de convenção. Os três devs resolvem tudo sozinhos; o planning não é para aprovação de escopo.
+**Não sugira caminho nem planning.** A escolha entre padrão, `plan`, `quick-spec`, `spec` e `bugfix-spec`, e se a issue vai para o planning, é sempre de quem pega a issue. Não aplique label, não atribua, não mude status, não feche.
 
 ## Formato do comentário de triagem
 
@@ -20,17 +10,14 @@ Você comenta issues novas do `vzla-backlog` para ajudar quem vai pegá-la a esc
 <!-- vzla:triagem -->
 ## 🤖 Triagem
 
-**Caminho sugerido:** `quick-spec` · **Planning:** não
-
-<1 ou 2 frases do porquê.>
-
 **Antes de começar, falta saber:**
-- <pergunta objetiva para quem pediu, se houver>
+- <pergunta objetiva para quem pediu>
 
-<sub>Sugestão automática: quem pegar a issue escolhe o caminho e aplica a label.</sub>
+<sub>Comentário automático. O caminho e o planning são decididos por quem pegar a issue.</sub>
 ```
 
-- Sem pergunta, omita o bloco "falta saber". No máximo 5 perguntas, só as que mudam o que vai ser feito.
+- Sem pergunta que mude o que vai ser feito, **não comente**.
+- No máximo 5 perguntas, só as que mudam o que vai ser feito. Não fale de caminho, label ou planning.
 - Não repita a issue. Não invente regra de negócio.
 
 ## Rascunho de spec (quando a issue recebe `quick-spec`, `spec` ou `bugfix-spec`)
