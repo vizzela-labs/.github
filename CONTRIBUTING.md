@@ -83,7 +83,7 @@ Nenhum desses checks bloqueia o merge (o plano Free não bloqueia em repo privad
 | Coolify avisa no PR que o preview subiu (back com `@nestjs/swagger`) | Check **Contrato × preview**: cada `specs/*/contrato.yaml` do repo contra o `docs-json` do preview. Endpoint ainda não feito só conta; campo prometido que falta, tipo ou status diferente deixam vermelho. |
 | `@claude valide` no PR | O Claude confere o PR contra a spec (`specs/<nº>-*/`) e responde com uma tabela requisito → atendido / parcial / não atendido. |
 | `@claude corrija <o quê>` no PR | O Claude aplica a correção e commita **na branch do PR** (nunca na dev ou na main, nunca mergeia). Quem pediu revisa o commit. |
-| Issue nova no `vzla-backlog` | O Claude comenta o caminho sugerido (padrão, `plan`, `quick-spec`, `spec`, `bugfix-spec`), se vale `planning` e o que falta perguntar. Só sugere: quem pega a issue aplica a label. |
+| Issue nova no `vzla-backlog` | O Claude comenta só o que falta perguntar a quem pediu (sem pergunta, não comenta). Não sugere caminho nem planning: quem pega a issue decide e aplica a label. |
 | Label `quick-spec`, `spec` ou `bugfix-spec` na issue | O Claude comenta um rascunho da spec (requisitos EARS ou HOJE/ESPERADO/INALTERADO) com as perguntas em aberto, para copiar para `specs/` no back. |
 | Domingo (sprint) | Cria a sprint atual e a próxima, abre o benchmark da sprint que acabou e leva os itens abertos para a sprint nova. |
 
