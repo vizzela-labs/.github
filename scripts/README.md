@@ -9,6 +9,9 @@
 | `spec-lint.js` | Formato da spec (EARS, blocos do bugfix, pendências), usado pelo check **Spec: formato**. |
 | `sprint.js` | Usado por `reusable-sprint.yml`: sprints de 15 dias, benchmark e itens abertos para a sprint nova. |
 | `benchmark.js` | Issue **Benchmark · Sprint** com os números da sprint encerrada. |
+| `contract-check.sh` | Usado por `reusable-contract.yml`: compara `specs/*/contrato.yaml` com o OpenAPI do preview (oasdiff). |
+| `mock-do-contrato.sh` | Roda no front: gera o mock MSW e os tipos de uma spec que mora no back. |
+| `agentes.js` | Seção **Fluxo Vizzela** do `CLAUDE.md`/`AGENTS.md` de cada repo (`node scripts/agentes.js <repo>`). |
 | `devs.json` | Devs sorteados para review e QA. Edite aqui quando alguém entrar ou sair do time. |
 | `setup-repo.sh` | Instala o PR padrão num repo: labels, secrets e PR com o workflow. |
 | `test.js` | Testes do `lib.js` (`node scripts/test.js`). |

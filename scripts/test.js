@@ -64,6 +64,12 @@ assert.equal(lib.previewUrl('vzla-cashback', 12, 'main'), null);
 assert.equal(lib.previewUrl('vzla-panel-hub', 7, 'main'), 'https://hub-pr-7.equipevizzela.com.br');
 assert.equal(lib.previewUrl('vzla-lojas-pdv', 7, 'dev'), null);
 
+// comentário do Coolify
+assert.equal(lib.parseCoolifyReady('The preview deployment for **vzla-cashback** is ready. 🟢\n\n[Open Preview](https://cashback-dev-pr-3.equipevizzela.com.br) | [Open Build Logs](https://x)'),
+  'https://cashback-dev-pr-3.equipevizzela.com.br');
+assert.equal(lib.parseCoolifyReady('The preview deployment for **x** is in progress. 🟡\n[Open Preview](https://a.b)'), null);
+assert.equal(lib.OPENAPI_PATHS['vizzela-products-backend'], '/api/docs-json');
+
 // formato da spec
 const spec = require('./spec-lint.js');
 assert.deepEqual(spec.specDirs(['specs/42-x/requisitos.md', 'specs/42-x/contrato.yaml', 'apps/api/specs/7-y/bugfix.md', 'specs/README.md', 'specs/_modelo/a.md', 'src/a.ts']),
@@ -115,5 +121,15 @@ assert.equal(sm.leadMedianH, 24);
 assert.equal(sm.firstReviewMedianH, 4);
 assert.deepEqual([sm.semReview.length, sm.vermelho.length, sm.semComoTestar.length], [1, 1, 1]);
 assert.match(bm.render({ startDate: '2026-11-15' }, '2026-11-28', sm), /Sprint de 15\/11\/2026 a 28\/11\/2026/);
+
+// seção do CLAUDE.md
+const ag = require('./agentes.js');
+const once = ag.upsert('# Repo\n\nregras locais\n', 'vzla-cashback');
+assert.ok(once.startsWith('# Repo\n\nregras locais\n\n<!-- vzla:fluxo -->'));
+assert.equal(ag.upsert(once, 'vzla-cashback'), once);
+assert.equal(ag.upsert(once.replace('## Fluxo Vizzela', '## velho'), 'vzla-cashback'), once);
+assert.match(ag.section('vzla-lojas-admin'), /src\/mocks/);
+assert.match(ag.section('vzla-cashback'), /docs-json/);
+assert.throws(() => ag.section('repo-desconhecido'));
 
 console.log('ok: todos os testes passaram');

@@ -1,0 +1,83 @@
+name: PR padrão · contrato × preview
+
+# Quando o Coolify comenta "preview … is ready" no PR (pelo App vizzela-labs), compara cada
+# specs/*/contrato.yaml do repo com o OpenAPI que o preview publica (@nestjs/swagger) e grava o
+# check "Contrato × preview" no commit do PR. Avisa, não bloqueia.
+on:
+  workflow_call:
+
+jobs:
+  contrato:
+    name: Contrato × preview
+    if: >-
+      github.event_name == 'issue_comment' && github.event.issue.pull_request &&
+      github.event.comment.user.login == 'vizzela-labs[bot]' &&
+      contains(github.event.comment.body, 'is ready')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      checks: write
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          repository: vizzela-labs/.github
+          ref: main
+          path: .vzla
+          persist-credentials: false
+
+      - name: Lê o PR e a URL do preview
+        id: pr
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const lib = require('./.vzla/scripts/lib.js');
+            const { owner, repo } = context.repo;
+            const path = lib.OPENAPI_PATHS[repo];
+            const url = lib.parseCoolifyReady(context.payload.comment.body);
+            if (!path || !url) return core.info(`Sem OpenAPI mapeado para ${repo} ou preview sem URL: nada a fazer.`);
+            const { data: pr } = await github.rest.pulls.get({ owner, repo, pull_number: context.payload.issue.number });
+            if (pr.state !== 'open') return core.info('PR fechado.');
+            core.setOutput('sha', pr.head.sha);
+            core.setOutput('openapi', url + path);
+
+      - uses: actions/checkout@v5
+        if: steps.pr.outputs.sha
+        with:
+          ref: ${{ steps.pr.outputs.sha }}
+          path: repo
+          persist-credentials: false
+
+      - name: Instala o oasdiff
+        if: steps.pr.outputs.sha
+        run: |
+          curl -fsSL https://github.com/oasdiff/oasdiff/releases/download/v1.34.1/oasdiff_1.34.1_linux_amd64.tar.gz | tar xz -C "$RUNNER_TEMP" oasdiff
+          echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
+
+      - name: Compara
+        id: diff
+        if: steps.pr.outputs.sha
+        working-directory: repo
+        env:
+          RESUMO: ${{ runner.temp }}/resumo.md
+        run: bash ../.vzla/scripts/contract-check.sh "${{ steps.pr.outputs.openapi }}"
+
+      - name: Grava o check no commit do PR
+        if: steps.pr.outputs.sha
+        uses: actions/github-script@v8
+        env:
+          SHA: ${{ steps.pr.outputs.sha }}
+          STATUS: ${{ steps.diff.outputs.status || 'neutral' }}
+          RESUMO: ${{ runner.temp }}/resumo.md
+        with:
+          script: |
+            const fs = require('node:fs');
+            const summary = fs.existsSync(process.env.RESUMO) ? fs.readFileSync(process.env.RESUMO, 'utf8') : 'Sem resumo.';
+            const titles = { success: 'O preview cumpre os contratos', failure: 'O preview não cumpre o contrato', neutral: 'Nada a comparar' };
+            await github.rest.checks.create({
+              ...context.repo, name: 'Contrato × preview', head_sha: process.env.SHA, status: 'completed',
+              conclusion: process.env.STATUS,
+              output: { title: titles[process.env.STATUS] || process.env.STATUS, summary: summary.slice(0, 65000) },
+            });
+            await core.summary.addRaw(summary).write();

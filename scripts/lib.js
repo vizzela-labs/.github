@@ -110,6 +110,22 @@ const PREVIEWS = {
   'vzla-lojas-api': { prefix: 'api-lojas-dev', bases: ['dev'] },
   'vzla-zendesk-gateway': { prefix: 'zendesk-gateway-dev', bases: ['dev'] },
 };
+// Onde cada back publica o OpenAPI gerado do código (@nestjs/swagger). Usado pelo check
+// "Contrato × preview", que compara specs/*/contrato.yaml com o que o preview responde.
+const OPENAPI_PATHS = {
+  'vzla-cashback': '/docs-json',
+  'vzla-tracking': '/docs-json',
+  'vzla-gerencial': '/docs-json',
+  'vzla-marketplaces-api': '/docs-json',
+  'vizzela-products-backend': '/api/docs-json',
+  'vzla-zendesk-gateway': '/docs-json',
+};
+/** URL do preview anunciada no comentário do Coolify, se o deploy terminou bem. */
+function parseCoolifyReady(body) {
+  if (!/preview deployment .* is ready/i.test(body || '')) return null;
+  const m = /\[Open Preview\]\((https:\/\/[^)\s]+)\)/.exec(body);
+  return m ? m[1].replace(/\/$/, '') : null;
+}
 const previewUrl = (repo, prNumber, base = 'dev') => {
   const p = PREVIEWS[repo];
   return p && p.bases.includes(base) ? `https://${p.prefix}-pr-${prNumber}.equipevizzela.com.br` : null;
@@ -132,4 +148,7 @@ module.exports = {
   ensureLabel,
   sleep,
   previewUrl,
+  PREVIEWS,
+  OPENAPI_PATHS,
+  parseCoolifyReady,
 };
