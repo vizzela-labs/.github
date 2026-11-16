@@ -127,12 +127,46 @@ function parseCoolifyReady(body) {
   const m = /\[Open Preview\]\((https:\/\/[^)\s]+)\)/.exec(body);
   return m ? m[1].replace(/\/$/, '') : null;
 }
+/** PR de spec (passo 03): só mexe em specs/. Sem arquivos (lista vazia) não conta. */
+const isSpecOnly = (paths) => paths.length > 0 && paths.every(isSpecPath);
+
+/** Labels de caminho que levam a issue-mãe para a coluna Spec. */
+const SPEC_PATH_LABELS = ['quick-spec', 'spec', 'bugfix-spec'];
+
+/**
+ * Coluna da issue-mãe enquanto um PR dela está aberto: PR de spec deixa a mãe em Spec (a
+ * aprovação do contrato vem antes do código); PR de código com preview no ar = QA (vez de
+ * quem pediu testar); senão, In progress.
+ */
+function parentStatusKey({ specOnly, preview }) {
+  if (specOnly) return 'spec';
+  return preview ? 'qa' : 'inProgress';
+}
+
+/**
+ * Fase da issue no board a partir de um evento do vzla-backlog. Atribuir alguém a uma issue
+ * ainda em Backlog (ou sem status) = Triagem (passo 02); label de caminho com spec = Spec
+ * (passo 03). Qualquer outro evento não mexe na coluna (null).
+ */
+function issuePhaseKey({ action, label, currentStatus }) {
+  if (action === 'assigned' && (!currentStatus || currentStatus === 'Backlog')) return 'triagem';
+  if (action === 'labeled' && SPEC_PATH_LABELS.includes(label)) {
+    // Não volta uma issue que já passou da spec (Todo em diante).
+    if (!currentStatus || ['Backlog', 'Triagem'].includes(currentStatus)) return 'spec';
+  }
+  return null;
+}
+
 const previewUrl = (repo, prNumber, base = 'dev') => {
   const p = PREVIEWS[repo];
   return p && p.bases.includes(base) ? `https://${p.prefix}-pr-${prNumber}.equipevizzela.com.br` : null;
 };
 
 module.exports = {
+  isSpecOnly,
+  SPEC_PATH_LABELS,
+  parentStatusKey,
+  issuePhaseKey,
   TYPES,
   TYPE_LABELS,
   EXTRA_LABELS,

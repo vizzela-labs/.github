@@ -11,11 +11,14 @@ const PROJECT = {
   todo: 'f75ad846',
   inProgress: '47fc9ee4',
   inReview: '0909cf2b',
+  triagem: '1f33c48e',
+  spec: 'a675bd02',
   qa: '969ee038',
   done: '98236657',
 };
 const STATUS_NAME = {
-  [PROJECT.backlog]: 'Backlog', [PROJECT.todo]: 'Todo', [PROJECT.inProgress]: 'In progress',
+  [PROJECT.backlog]: 'Backlog', [PROJECT.triagem]: 'Triagem', [PROJECT.spec]: 'Spec',
+  [PROJECT.todo]: 'Todo', [PROJECT.inProgress]: 'In progress',
   [PROJECT.inReview]: 'In review', [PROJECT.qa]: 'QA', [PROJECT.done]: 'Done',
 };
 // "Pronto" é sempre manual: release e hotfix levam o item para esta coluna, e um dev
@@ -51,6 +54,22 @@ module.exports = async ({ github, context, core }) => {
   }
 
   // ---------- helpers ----------
+  // PR de spec (passo 03): só mexe em specs/. Muda a coluna da issue-mãe (Spec, e Todo no merge).
+  let specOnlyCache;
+  async function specOnly() {
+    if (specOnlyCache !== undefined) return specOnlyCache;
+    try {
+      const files = await github.paginate(github.rest.pulls.listFiles, {
+        owner, repo, pull_number: pr.number, per_page: 100,
+      });
+      specOnlyCache = lib.isSpecOnly(files.map((f) => f.filename));
+    } catch (e) {
+      core.warning(`Não consegui listar os arquivos do PR: ${e.message}`);
+      specOnlyCache = false;
+    }
+    return specOnlyCache;
+  }
+
   async function findStickyComment() {
     const comments = await github.paginate(github.rest.issues.listComments, {
       owner, repo, issue_number: pr.number, per_page: 100,
@@ -341,6 +360,14 @@ module.exports = async ({ github, context, core }) => {
         }
       }
       addEvent('Mergeado na dev', `Mergeado na dev por ${pr.merged_by?.login || 'alguém'}: em QA no ambiente de dev${qa ? ` (QA: @${qa})` : ''}`);
+      // Spec aprovada e mergeada: o pedido sai de Spec e vai para Todo (back e front começam).
+      if (parentNumber && (await specOnly())) {
+        const parentIssue = await getHubIssue(parentNumber);
+        if (parentIssue) {
+          await setStatus(parentIssue.node_id, PROJECT.todo);
+          addEvent('Spec mergeada', `Spec mergeada: ${hubRef(parentNumber)} em Todo`);
+        }
+      }
       await upsertComment(comment, [
         `${COMMENT_TAG}: ${issue.number} -->`,
         '### 🔗 Rastreamento',
@@ -426,11 +453,12 @@ module.exports = async ({ github, context, core }) => {
     await syncLabels(issue, labels);
   }
 
-  // Rascunho = In progress; pronto para revisão = In review. Com preview no ar,
-  // o pedido (issue-mãe) vai para QA: é a vez de quem pediu testar.
-  const preview = pr.draft ? null : lib.previewUrl(repo, pr.number, pr.base.ref);
+  // Rascunho = In progress; pronto para revisão = In review. A issue-mãe segue
+  // lib.parentStatusKey: PR de spec = Spec; preview no ar = QA (vez de quem pediu testar).
+  const isSpecPr = await specOnly();
+  const preview = pr.draft || isSpecPr ? null : lib.previewUrl(repo, pr.number, pr.base.ref);
   const subStatus = pr.draft ? PROJECT.inProgress : PROJECT.inReview;
-  const parentStatus = preview ? PROJECT.qa : PROJECT.inProgress;
+  const parentStatus = PROJECT[lib.parentStatusKey({ specOnly: isSpecPr, preview })];
   if (parent) {
     await linkParent(parent, issue);
     await setStatus(parent.node_id, parentStatus);

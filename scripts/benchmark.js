@@ -64,7 +64,7 @@ const ref = (pr) => `${pr.repository.name}#${pr.number}`;
 const list = (prs) => (prs.length ? prs.slice(0, 15).map(ref).join(', ') + (prs.length > 15 ? '…' : '') : '–');
 
 function render(sprint, end, s) {
-  const order = ['Done', 'Em produção', 'QA', 'In review', 'In progress', 'Todo', 'Backlog', 'Sem status'];
+  const order = ['Done', 'Em produção', 'QA', 'In review', 'In progress', 'Todo', 'Spec', 'Triagem', 'Backlog', 'Sem status'];
   const rank = (k) => (order.includes(k) ? order.indexOf(k) : 99);
   const statusRows = Object.entries(s.status)
     .sort(([a], [b]) => rank(a) - rank(b))

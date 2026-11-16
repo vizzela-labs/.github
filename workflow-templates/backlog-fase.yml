@@ -1,0 +1,18 @@
+# Só no vzla-backlog. Lógica em vizzela-labs/.github (reusable-issue-phase.yml + scripts/issue-phase.js).
+name: Fase no board
+
+on:
+  issues:
+    types: [assigned, labeled]
+
+jobs:
+  fase:
+    concurrency:
+      group: fase-${{ github.event.issue.number }}
+      cancel-in-progress: false
+    uses: vizzela-labs/.github/.github/workflows/reusable-issue-phase.yml@main
+    permissions:
+      contents: read
+    secrets:
+      app_id: ${{ secrets.VZLA_APP_ID }}
+      app_private_key: ${{ secrets.VZLA_APP_PRIVATE_KEY }}
