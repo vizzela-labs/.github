@@ -59,13 +59,13 @@ A **dev** é o tronco (e a branch padrão dos repos). A **main** é o que está 
 | **Review por outro dev, sorteado** | Quando o PR sai do rascunho, a automação pede review de um dev sorteado (menos o autor). Sem cargos; vale para PR único ou pilha de PRs. A lista está em [`scripts/devs.json`](scripts/devs.json) |
 | **Como testar** | Todo PR traz o link do ambiente já buildado e os passos, direto. Seção vazia = check **Como testar** vermelho |
 | **Preview por PR** | PR para a `dev` sobe sozinho em `<app>-pr-<nº>.equipevizzela.com.br`, com as variáveis do ambiente de dev |
-| **QA sorteado** | No merge na `dev`, a automação sorteia um dev (menos o autor) para testar no ambiente de dev junto com quem pediu |
+| **QA sorteado** | No merge de um PR de código na `dev`, a automação sorteia um dev (menos o autor) para testar no ambiente de dev junto com quem pediu |
 | **Spec** | Fica no repo do back, em `specs/<nº>-slug/` (`requisitos.md` ou `bugfix.md`, `design.md`, `contrato.yaml`, `tarefas.md`), a partir do [modelo](specs-modelo/). No PR, três checks: **Spec: formato** (requisitos em EARS, bugfix com HOJE/ESPERADO/INALTERADO, nenhuma pergunta em aberto), **Spec: contrato** (OpenAPI válido e sem quebrar quem já consome; com `!` no título, só avisa) e **Spec: aprovações** (2 aprovações, back e front) |
 | **Mock do front** | Dentro do front, com MSW + `@mswjs/source` (handlers gerados do `contrato.yaml` por [`scripts/mock-do-contrato.sh`](scripts/mock-do-contrato.sh)), em `src/mocks/<nº>-slug/` ([padrão](specs-modelo/README.md#mock-do-front-padrão)). Sai no PR de integração; mock indo para a `main` deixa o check **Release: sem mock** vermelho |
 | **Migration** | Roda sozinha no deploy (exceção: `vzla-lojas-api`, que roda à mão com o dono do banco). Migration que apaga ou reescreve dado (DROP, TRUNCATE, RENAME, troca de tipo, `SET NOT NULL`) deixa o check **Migration destrutiva** vermelho: faça backup manual do banco de produção antes da release e escreva "backup" no Como testar, o que transforma o vermelho em aviso. Se der, divida em duas etapas (expandir, depois contrair) |
 | **Healthcheck** | Todo app no Coolify tem healthcheck (no Dockerfile ou no Coolify, em `127.0.0.1`): back em `/health` ou `/api/health`, front em `/`. Deploy com container novo que não responde volta sozinho para o antigo |
 | **Sprint** | 15 dias. No domingo em que a sprint vira, a automação abre no `vzla-backlog` a issue **Benchmark · Sprint DD/MM/AAAA** com os números da sprint; cada dev responde a retro nela |
-| **Pronto é manual** | Release e hotfix levam o item para **Em produção**. Um dev move para **Done** no board depois de conferir em produção. Nenhuma automação marca Done |
+| **Pronto é manual** | Release e hotfix levam o item para **Em produção**. Um dev move para **Done** no board depois de conferir em produção. Nenhuma automação marca Done, com uma exceção: a sub-issue de um PR de spec, que não vai para produção, fica concluída no merge |
 
 Nenhum desses checks bloqueia o merge (o plano Free não bloqueia em repo privado): eles avisam, e o combinado é não mergear com check vermelho.
 
@@ -74,12 +74,12 @@ Nenhum desses checks bloqueia o merge (o plano Free não bloqueia em repo privad
 | Quando | O que a automação faz |
 |---|---|
 | PR aberto / reaberto / editado | Cria (ou atualiza) a sub-issue `[repo] título do PR` no `vzla-backlog`, pendura na issue-mãe, coloca no projeto **Tecnologia Vizzela** como *In progress*, atribui ao autor e comenta no PR com os links. A issue-mãe vai para *In progress*, ou *QA* quando o preview do PR sobe. |
-| PR de spec (só mexe em `specs/`) aberto / mergeado | A issue-mãe fica em *Spec* enquanto o PR está aberto (sem anunciar homologação) e vai para *Todo* no merge na `dev`: back e front começam. |
+| PR de spec (só mexe em `specs/`) aberto / mergeado | A issue-mãe fica em *Spec* enquanto o PR está aberto (sem anunciar homologação) e vai para *Todo* no merge na `dev`: back e front começam. No merge, a sub-issue do PR de spec fecha como concluída (*Done*), sem QA sorteado, e continua no histórico da mãe; a release não a reabre. |
 | Issue do `vzla-backlog` atribuída a alguém (em *Backlog*) | Vai para *Triagem*: quem pegou escolhe o caminho. |
 | Label `quick-spec`, `spec` ou `bugfix-spec` na issue (em *Backlog* ou *Triagem*) | Vai para *Spec*. Issue que já passou da spec não volta. |
 | PR sai do rascunho | Pede review de um dev sorteado e sobe o preview do PR |
-| PR mergeado na **dev** | Sub-issue continua aberta, em *QA* (está no ambiente de dev), com um dev sorteado como QA |
-| **Release** (dev → main) mergeada | As sub-issues de todos os PRs da release vão para *Em produção*. Um dev move cada uma para *Done* depois de conferir |
+| PR de código mergeado na **dev** | Sub-issue continua aberta, em *QA* (está no ambiente de dev), com um dev sorteado como QA |
+| **Release** (dev → main) mergeada | As sub-issues dos PRs de código da release vão para *Em produção* (as de spec já estão concluídas). Um dev move cada uma para *Done* depois de conferir |
 | **Hotfix** mergeado na main | Sub-issue → *Em produção*; a main é levada de volta para a dev por merge (com conflito, abre um PR de sincronização) |
 | PR fechado sem merge | Fecha a sub-issue como *not planned*. A mãe não é tocada. |
 | PR aberto / reaberto / saiu de draft | O **Claude** revisa o PR seguindo [`review/diretrizes.md`](review/diretrizes.md): comentários inline só para problemas concretos (🔴/🟡/🔵) e um resumo com veredito. É consultivo: não aprova, não bloqueia, não commita. |
