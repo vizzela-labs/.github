@@ -295,6 +295,8 @@ module.exports = async ({ github, context, core }) => {
       if (!m) continue;
       const sub = await getHubIssue(Number(m[1]));
       if (!sub) continue;
+      // Sub-issue concluída no merge (PR de spec): já está pronta, a release não a reabre.
+      if (sub.state === 'closed' && sub.state_reason === 'completed') continue;
       if (sub.state === 'closed') await github.rest.issues.update({ ...HUB, issue_number: sub.number, state: 'open' });
       await setStatus(sub.node_id, target);
       moved.push(`- ${owner}/${repo}#${n} → ${hubRef(sub.number)} ${STATUS_NAME[target]}`);
@@ -343,6 +345,34 @@ module.exports = async ({ github, context, core }) => {
       return;
     }
     const merged = Boolean(pr.merged);
+    if (merged && toTrunk && (await specOnly())) {
+      // Spec não vai para produção nem tem o que testar: o merge com as 2 aprovações é o pronto
+      // dela. A sub-issue fecha como concluída (fica no histórico da mãe), sem QA, e a release
+      // não a reabre. A mãe sai de Spec e vai para Todo: back e front começam.
+      await setStatus(issue.node_id, PROJECT.done);
+      if (issue.state !== 'closed') {
+        await github.rest.issues.update({ ...HUB, issue_number: issue.number, state: 'closed', state_reason: 'completed' });
+      }
+      const parentNumber = await currentParentNumber(issue.number);
+      addEvent('Spec mergeada', `Spec mergeada na dev por ${pr.merged_by?.login || 'alguém'}: contrato oficial, sub-issue concluída`);
+      if (parentNumber) {
+        const parentIssue = await getHubIssue(parentNumber);
+        if (parentIssue) {
+          await setStatus(parentIssue.node_id, PROJECT.todo);
+          addEvent('Pedido em Todo', `${hubRef(parentNumber)} em Todo: back e front começam`);
+        }
+      }
+      await upsertComment(comment, [
+        `${COMMENT_TAG}: ${issue.number} -->`,
+        '### 🔗 Rastreamento',
+        `- **Sub-issue:** ${hubRef(issue.number)} → concluída (spec na dev; não passa por QA nem pela release)`,
+        parentNumber ? `- **Issue-mãe:** ${hubRef(parentNumber)} → Todo` : null,
+        ...historyBlock(),
+        '',
+        '<sub>Atualizado automaticamente pelo workflow PR padrão. [Convenções](https://github.com/vizzela-labs/.github/blob/main/CONTRIBUTING.md)</sub>',
+      ]);
+      return;
+    }
     if (merged && toTrunk) {
       if (issue.state === 'closed') {
         await github.rest.issues.update({ ...HUB, issue_number: issue.number, state: 'open' });
@@ -360,14 +390,6 @@ module.exports = async ({ github, context, core }) => {
         }
       }
       addEvent('Mergeado na dev', `Mergeado na dev por ${pr.merged_by?.login || 'alguém'}: em QA no ambiente de dev${qa ? ` (QA: @${qa})` : ''}`);
-      // Spec aprovada e mergeada: o pedido sai de Spec e vai para Todo (back e front começam).
-      if (parentNumber && (await specOnly())) {
-        const parentIssue = await getHubIssue(parentNumber);
-        if (parentIssue) {
-          await setStatus(parentIssue.node_id, PROJECT.todo);
-          addEvent('Spec mergeada', `Spec mergeada: ${hubRef(parentNumber)} em Todo`);
-        }
-      }
       await upsertComment(comment, [
         `${COMMENT_TAG}: ${issue.number} -->`,
         '### 🔗 Rastreamento',
