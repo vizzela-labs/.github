@@ -55,6 +55,7 @@ A **dev** é o tronco (e a branch padrão dos repos). A **main** é o que está 
 | Regra | Como funciona |
 |---|---|
 | **Caminho da issue** | Quem pega a issue escolhe e marca no `vzla-backlog`: sem label = padrão; `plan`, `quick-spec`, `spec` ou `bugfix-spec`. Só vai para o planning (label `planning`) o que afeta padrão ou longevidade: serviço novo, contrato usado por outro app, troca de lib ou convenção |
+| **Colunas do board** | `Backlog → Triagem → Spec → Todo → In progress → In review → QA → Em produção → Done`. **Triagem** (passo 02): um dev pegou a issue e escolhe o caminho. **Spec** (passo 03): a spec + contrato está em PR, esperando back e front aprovarem. A label diz *qual* caminho; a coluna diz *em que fase* a issue está |
 | **Review por outro dev, sorteado** | Quando o PR sai do rascunho, a automação pede review de um dev sorteado (menos o autor). Sem cargos; vale para PR único ou pilha de PRs. A lista está em [`scripts/devs.json`](scripts/devs.json) |
 | **Como testar** | Todo PR traz o link do ambiente já buildado e os passos, direto. Seção vazia = check **Como testar** vermelho |
 | **Preview por PR** | PR para a `dev` sobe sozinho em `<app>-pr-<nº>.equipevizzela.com.br`, com as variáveis do ambiente de dev |
@@ -72,7 +73,10 @@ Nenhum desses checks bloqueia o merge (o plano Free não bloqueia em repo privad
 
 | Quando | O que a automação faz |
 |---|---|
-| PR aberto / reaberto / editado | Cria (ou atualiza) a sub-issue `[repo] título do PR` no `vzla-backlog`, pendura na issue-mãe, coloca no projeto **Tecnologia Vizzela** como *In progress*, atribui ao autor e comenta no PR com os links. |
+| PR aberto / reaberto / editado | Cria (ou atualiza) a sub-issue `[repo] título do PR` no `vzla-backlog`, pendura na issue-mãe, coloca no projeto **Tecnologia Vizzela** como *In progress*, atribui ao autor e comenta no PR com os links. A issue-mãe vai para *In progress*, ou *QA* quando o preview do PR sobe. |
+| PR de spec (só mexe em `specs/`) aberto / mergeado | A issue-mãe fica em *Spec* enquanto o PR está aberto (sem anunciar homologação) e vai para *Todo* no merge na `dev`: back e front começam. |
+| Issue do `vzla-backlog` atribuída a alguém (em *Backlog*) | Vai para *Triagem*: quem pegou escolhe o caminho. |
+| Label `quick-spec`, `spec` ou `bugfix-spec` na issue (em *Backlog* ou *Triagem*) | Vai para *Spec*. Issue que já passou da spec não volta. |
 | PR sai do rascunho | Pede review de um dev sorteado e sobe o preview do PR |
 | PR mergeado na **dev** | Sub-issue continua aberta, em *QA* (está no ambiente de dev), com um dev sorteado como QA |
 | **Release** (dev → main) mergeada | As sub-issues de todos os PRs da release vão para *Em produção*. Um dev move cada uma para *Done* depois de conferir |

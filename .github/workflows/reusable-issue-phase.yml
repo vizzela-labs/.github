@@ -1,0 +1,59 @@
+name: Backlog · fase no board
+
+# Instalado no vzla-backlog (workflow-templates/backlog-fase.yml).
+#   issue atribuída (em Backlog)           → coluna Triagem
+#   label quick-spec / spec / bugfix-spec  → coluna Spec
+on:
+  workflow_call:
+    secrets:
+      app_id:
+        required: false
+      app_private_key:
+        required: false
+
+jobs:
+  fase:
+    name: Move a issue de coluna
+    if: ${{ !endsWith(github.event.issue.user.login, '[bot]') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: Confere secrets do GitHub App
+        id: guard
+        env:
+          APP_ID: ${{ secrets.app_id }}
+          APP_KEY: ${{ secrets.app_private_key }}
+        run: |
+          if [ -z "$APP_ID" ] || [ -z "$APP_KEY" ]; then
+            echo "::warning::Secrets VZLA_APP_ID / VZLA_APP_PRIVATE_KEY ausentes no vzla-backlog. Coluna NÃO atualizada."
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Gera token do App vizzela-labs
+        id: app
+        if: steps.guard.outputs.ok == 'true'
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.app_id }}
+          private-key: ${{ secrets.app_private_key }}
+          owner: vizzela-labs
+
+      - name: Baixa os scripts de vizzela-labs/.github
+        if: steps.guard.outputs.ok == 'true'
+        uses: actions/checkout@v5
+        with:
+          repository: vizzela-labs/.github
+          ref: main
+          path: .vzla
+          persist-credentials: false
+
+      - name: Atualiza a coluna no projeto Tecnologia Vizzela
+        if: steps.guard.outputs.ok == 'true'
+        uses: actions/github-script@v8
+        with:
+          github-token: ${{ steps.app.outputs.token }}
+          script: return await require('./.vzla/scripts/issue-phase.js')({ github, context, core })

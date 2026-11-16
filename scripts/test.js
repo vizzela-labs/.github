@@ -143,4 +143,20 @@ assert.match(ag.section('vzla-lojas-admin'), /src\/mocks/);
 assert.match(ag.section('vzla-cashback'), /docs-json/);
 assert.throws(() => ag.section('repo-desconhecido'));
 
+
+// fases do board (Triagem → Spec → Todo)
+assert.equal(lib.isSpecOnly(['specs/150-cupom/requisitos.md', 'apps/api/specs/150-cupom/contrato.yaml']), true);
+assert.equal(lib.isSpecOnly(['specs/150-cupom/requisitos.md', 'src/main.ts']), false);
+assert.equal(lib.isSpecOnly([]), false);
+assert.equal(lib.parentStatusKey({ specOnly: true, preview: 'https://x' }), 'spec');
+assert.equal(lib.parentStatusKey({ specOnly: false, preview: 'https://x' }), 'qa');
+assert.equal(lib.parentStatusKey({ specOnly: false, preview: null }), 'inProgress');
+assert.equal(lib.issuePhaseKey({ action: 'assigned', currentStatus: 'Backlog' }), 'triagem');
+assert.equal(lib.issuePhaseKey({ action: 'assigned', currentStatus: null }), 'triagem');
+assert.equal(lib.issuePhaseKey({ action: 'assigned', currentStatus: 'In progress' }), null);
+assert.equal(lib.issuePhaseKey({ action: 'labeled', label: 'spec', currentStatus: 'Triagem' }), 'spec');
+assert.equal(lib.issuePhaseKey({ action: 'labeled', label: 'bugfix-spec', currentStatus: 'Backlog' }), 'spec');
+assert.equal(lib.issuePhaseKey({ action: 'labeled', label: 'spec', currentStatus: 'Todo' }), null);
+assert.equal(lib.issuePhaseKey({ action: 'labeled', label: 'plan', currentStatus: 'Triagem' }), null);
+
 console.log('ok: todos os testes passaram');

@@ -46,4 +46,7 @@ No plano Free, secrets da organização não chegam a repositórios privados. Po
 |---|---|
 | Projeto Tecnologia Vizzela | `PVT_kwDOFBBL-s4BlX7s` |
 | Campo Status | `PVTSSF_lADOFBBL-s4BlX7szhkFDoI` |
-| In progress / Done | `47fc9ee4` / `98236657` |
+| Backlog / Triagem / Spec / Todo | `9d1c2785` / `1f33c48e` / `a675bd02` / `f75ad846` |
+| In progress / In review / QA / Done | `47fc9ee4` / `0909cf2b` / `969ee038` / `98236657` |
+
+`issue-phase.js` repete os ids de Triagem e Spec. Nova coluna no Status: crie pela API mandando o `id` de **todas** as opções existentes em `singleSelectOptions`, senão os itens perdem a coluna.
