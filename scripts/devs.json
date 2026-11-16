@@ -1,0 +1,4 @@
+{
+  "_comment": "Devs sorteados para review e QA (logins do GitHub). Sem cargos: o sorteio só exclui o autor do PR.",
+  "devs": ["BSBContreras", "marcelopiccolomini", "Moredy"]
+}

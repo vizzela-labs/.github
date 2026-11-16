@@ -1,0 +1,38 @@
+# Contrato entre back e front. É dele que saem os tipos e o mock do front.
+# O check "Spec: contrato" roda o Redocly (regras mínimas) em todo PR que mexe aqui.
+openapi: 3.1.0
+info:
+  title: <app> · <nº> <nome>
+  version: 0.1.0
+servers:
+  - url: https://<app>-dev.equipevizzela.com.br
+paths:
+  /exemplos/{id}:
+    get:
+      operationId: getExemplo
+      summary: Busca um exemplo
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Encontrado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Exemplo' }
+              examples:
+                padrao:
+                  value: { id: 'ex_1', nome: 'Exemplo', valorCentavos: 1990 }
+        '404':
+          description: Não existe
+components:
+  schemas:
+    Exemplo:
+      type: object
+      required: [id, nome, valorCentavos]
+      properties:
+        id: { type: string }
+        nome: { type: string }
+        valorCentavos: { type: integer, description: Valor em centavos }

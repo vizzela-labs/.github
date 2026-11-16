@@ -16,6 +16,7 @@ const EXTRA_LABELS = {
   'pr-auto': { color: '0e8a16', description: 'Sub-issue gerada automaticamente a partir de um PR' },
   'sem-issue-mae': { color: 'e99695', description: 'PR sem issue-mãe informada' },
   'no-issue': { color: 'cccccc', description: 'Não gerar sub-issue para este PR' },
+  benchmark: { color: '5319e7', description: 'Benchmark e retro do fim da sprint' },
 };
 
 const TYPE_LABELS = Object.values(TYPES).map((t) => t.label);
@@ -50,13 +51,34 @@ function branchFollowsPattern(branch) {
   return /^(feat|fix|refactor|perf|docs|test|chore|ci)\/\d+-[a-z0-9][a-z0-9._-]*$/i.test(branch || '');
 }
 
-/** Conteúdo da seção "## Resumo" do corpo do PR, sem comentários HTML. */
-function extractSummary(body, max = 4000) {
+/** Conteúdo da seção "## <título>" do corpo do PR, sem comentários HTML. */
+function extractSection(body, title, max = 4000) {
   const text = stripComments(body).replace(/\r\n/g, '\n');
-  const m = /^##[ \t]*Resumo[ \t]*\n([\s\S]*?)(?=^##[ \t]|(?![\s\S]))/im.exec(text);
+  const esc = title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const m = new RegExp(`^##[ \\t]*${esc}[ \\t]*\\n([\\s\\S]*?)(?=^##[ \\t]|(?![\\s\\S]))`, 'im').exec(text);
   const out = (m ? m[1] : '').trim();
   return out.length > max ? `${out.slice(0, max)}…` : out;
 }
+
+/** Conteúdo da seção "## Resumo" do corpo do PR, sem comentários HTML. */
+function extractSummary(body, max = 4000) {
+  return extractSection(body, 'Resumo', max);
+}
+
+// Devs sorteados para review e QA. Sem cargos: qualquer um deles, menos o autor.
+const DEVS = require('./devs.json').devs;
+
+/** Sorteia um login de `pool` que não esteja em `exclude` (comparação sem caixa). */
+function pickRandom(pool, exclude = [], rnd = Math.random) {
+  const out = new Set(exclude.filter(Boolean).map((l) => l.toLowerCase()));
+  const options = pool.filter((l) => !out.has(l.toLowerCase()));
+  return options.length ? options[Math.floor(rnd() * options.length)] : null;
+}
+
+/** Arquivos de mock do front (MSW), que não podem chegar na main. */
+const isMockPath = (p) => /(^|\/)src\/mocks\//.test(p);
+/** Arquivos de spec (requisitos, design, contrato, tarefas). */
+const isSpecPath = (p) => /(^|\/)specs\//.test(p);
 
 async function ensureLabel(github, owner, repo, name) {
   const def = TYPES[Object.keys(TYPES).find((k) => TYPES[k].label === name)] || EXTRA_LABELS[name] ||
@@ -73,10 +95,42 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 // Repos com Preview Deployments ligado no Coolify → URL do preview de um PR.
 // Um nível só de subdomínio: o certificado da Cloudflare cobre *.equipevizzela.com.br,
 // não *.hub.equipevizzela.com.br. Tem que bater com o "Preview URL template" do app no Coolify.
+// O Coolify só sobe preview de PR cuja base é a branch do app: os apps "-dev" (base dev).
+// O panel-hub também tem preview no app de produção (base main).
 const PREVIEWS = {
-  'vzla-panel-hub': (pr) => `https://hub-pr-${pr}.equipevizzela.com.br`,
+  'vzla-panel-hub': { prefix: 'hub', bases: ['dev', 'main'] },
+  'vizzela-adm-pannel': { prefix: 'painel-dev', bases: ['dev'] },
+  'vzla-cashback': { prefix: 'cashback-dev', bases: ['dev'] },
+  'vzla-tracking': { prefix: 'tracking-dev', bases: ['dev'] },
+  'vzla-gerencial': { prefix: 'gerencial-dev', bases: ['dev'] },
+  'vzla-marketplaces-api': { prefix: 'marketplaces-dev', bases: ['dev'] },
+  'vizzela-products-backend': { prefix: 'products-backend-dev', bases: ['dev'] },
+  'vzla-data-hub': { prefix: 'data-hub-dev', bases: ['dev'] },
+  'vzla-lojas-admin': { prefix: 'lojas-dev', bases: ['dev'] },
+  'vzla-lojas-api': { prefix: 'api-lojas-dev', bases: ['dev'] },
+  'vzla-zendesk-gateway': { prefix: 'zendesk-gateway-dev', bases: ['dev'] },
+  'vizzela-data-adm': { prefix: 'etl-observador-dev', bases: ['dev'] },
 };
-const previewUrl = (repo, prNumber) => (PREVIEWS[repo] ? PREVIEWS[repo](prNumber) : null);
+// Onde cada back publica o OpenAPI gerado do código (@nestjs/swagger). Usado pelo check
+// "Contrato × preview", que compara specs/*/contrato.yaml com o que o preview responde.
+const OPENAPI_PATHS = {
+  'vzla-cashback': '/docs-json',
+  'vzla-tracking': '/docs-json',
+  'vzla-gerencial': '/docs-json',
+  'vzla-marketplaces-api': '/docs-json',
+  'vizzela-products-backend': '/api/docs-json',
+  'vzla-zendesk-gateway': '/docs-json',
+};
+/** URL do preview anunciada no comentário do Coolify, se o deploy terminou bem. */
+function parseCoolifyReady(body) {
+  if (!/preview deployment .* is ready/i.test(body || '')) return null;
+  const m = /\[Open Preview\]\((https:\/\/[^)\s]+)\)/.exec(body);
+  return m ? m[1].replace(/\/$/, '') : null;
+}
+const previewUrl = (repo, prNumber, base = 'dev') => {
+  const p = PREVIEWS[repo];
+  return p && p.bases.includes(base) ? `https://${p.prefix}-pr-${prNumber}.equipevizzela.com.br` : null;
+};
 
 module.exports = {
   TYPES,
@@ -86,8 +140,16 @@ module.exports = {
   parseParent,
   branchFollowsPattern,
   extractSummary,
+  extractSection,
+  DEVS,
+  pickRandom,
+  isMockPath,
+  isSpecPath,
   stripComments,
   ensureLabel,
   sleep,
   previewUrl,
+  PREVIEWS,
+  OPENAPI_PATHS,
+  parseCoolifyReady,
 };

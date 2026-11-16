@@ -18,6 +18,10 @@ const STATUS_NAME = {
   [PROJECT.backlog]: 'Backlog', [PROJECT.todo]: 'Todo', [PROJECT.inProgress]: 'In progress',
   [PROJECT.inReview]: 'In review', [PROJECT.qa]: 'QA', [PROJECT.done]: 'Done',
 };
+// "Pronto" é sempre manual: release e hotfix levam o item para esta coluna, e um dev
+// move para Done depois de conferir em produção. A opção é buscada pelo nome; se ainda
+// não existir no Status do projeto, o item fica em QA com um aviso.
+const PROD_STATUS_NAME = 'Em produção';
 const COMMENT_TAG = '<!-- vzla-sub-issue';
 
 module.exports = async ({ github, context, core }) => {
@@ -109,6 +113,20 @@ module.exports = async ({ github, context, core }) => {
     }
     core.warning(`Status no projeto não ficou em ${STATUS_NAME[optionId]} após 3 tentativas.`);
     return itemId;
+  }
+
+  let prodStatusCache;
+  async function prodStatus() {
+    if (prodStatusCache !== undefined) return prodStatusCache;
+    const r = await github.graphql(
+      `query($id:ID!){node(id:$id){... on ProjectV2SingleSelectField{options{id name}}}}`,
+      { id: PROJECT.statusField },
+    );
+    const opt = (r.node?.options || []).find((o) => o.name.toLowerCase() === PROD_STATUS_NAME.toLowerCase());
+    if (opt) STATUS_NAME[opt.id] = opt.name;
+    else core.warning(`Status "${PROD_STATUS_NAME}" não existe no projeto: item fica em QA. Crie a opção no campo Status.`);
+    prodStatusCache = opt ? opt.id : PROJECT.qa;
+    return prodStatusCache;
   }
 
   // Coloca o item na sprint atual, se ainda não tiver sprint.
@@ -230,7 +248,7 @@ module.exports = async ({ github, context, core }) => {
         '### Homologação disponível',
         `${people.join(' e ')}: o ${prRef} está no ar para teste em **${url}**.`,
         '',
-        'O ambiente sobe alguns minutos depois do PR ficar pronto e é atualizado a cada push. Ele usa o banco de **homologação** do data-hub; os outros serviços ainda são os de produção, então **não grave dados reais** por ele.',
+        'O ambiente sobe alguns minutos depois do PR ficar pronto e é atualizado a cada push. Ele usa as mesmas variáveis do ambiente de **dev** (bancos e serviços de dev). Siga a seção **Como testar** do PR.',
         '',
         'Quando terminar o teste, responda aqui com **aprovado** ou com o que precisa ajustar.',
       ].join('\n'),
@@ -238,27 +256,9 @@ module.exports = async ({ github, context, core }) => {
     core.info(`Homologação anunciada em ${hubRef(parent.number)}`);
   }
 
-  async function closeParentIfDone(issue) {
-    const parentNumber = await currentParentNumber(issue.number);
-    if (!parentNumber) return null;
-    await lib.sleep(3000); // deixa o resumo de sub-issues da mãe atualizar
-    const parent = await getHubIssue(parentNumber);
-    const s = parent?.sub_issues_summary;
-    // Tarefas "- [ ]" no corpo da mãe = etapas que não são PRs; enquanto houver, ela fica aberta.
-    const pendingTasks = (lib.stripComments(parent?.body || '').match(/^\s*[-*] \[ \]/gm) || []).length;
-    if (parent && parent.state === 'open' && s && s.total > 0 && s.completed === s.total && pendingTasks > 0) {
-      return `- **Issue-mãe:** ${hubRef(parent.number)}: todas as sub-issues concluídas, mas ficou aberta por ter ${pendingTasks} tarefa(s) pendente(s) no checklist`;
-    }
-    if (parent && parent.state === 'open' && s && s.total > 0 && s.completed === s.total) {
-      await github.rest.issues.update({ ...HUB, issue_number: parent.number, state: 'closed', state_reason: 'completed' });
-      await setStatus(parent.node_id, PROJECT.done);
-      return `- **Issue-mãe:** ${hubRef(parent.number)}: todas as sub-issues concluídas, fechada ✅`;
-    }
-    return parent ? `- **Issue-mãe:** ${hubRef(parent.number)} (${s ? `${s.completed}/${s.total}` : '?'} sub-issues concluídas)` : null;
-  }
-
   // Release (dev → main): os PRs incluídos saem dos commits da release (squash "(#N)" ou
   // "Merge pull request #N"); a sub-issue de cada um vem do comentário de rastreamento do PR.
+  // Nada é fechado aqui: o item vai para "Em produção" e um dev marca Done à mão.
   async function handleRelease() {
     const commits = await github.paginate(github.rest.pulls.listCommits, { owner, repo, pull_number: pr.number, per_page: 100 });
     const nums = new Set();
@@ -267,7 +267,8 @@ module.exports = async ({ github, context, core }) => {
       const m = first.match(/\(#(\d+)\)\s*$/) || first.match(/^Merge pull request #(\d+)/);
       if (m && Number(m[1]) !== pr.number) nums.add(Number(m[1]));
     }
-    const closed = [];
+    const target = await prodStatus();
+    const moved = [];
     for (const n of nums) {
       const cs = await github.paginate(github.rest.issues.listComments, { owner, repo, issue_number: n, per_page: 100 });
       const tag = cs.find((c) => c.user?.type === 'Bot' && c.body?.includes(COMMENT_TAG));
@@ -275,18 +276,21 @@ module.exports = async ({ github, context, core }) => {
       if (!m) continue;
       const sub = await getHubIssue(Number(m[1]));
       if (!sub) continue;
-      if (sub.state === 'open') {
-        await github.rest.issues.update({ ...HUB, issue_number: sub.number, state: 'closed', state_reason: 'completed' });
-      }
-      await setStatus(sub.node_id, PROJECT.done);
-      const parentLine = await closeParentIfDone(sub);
-      closed.push(`- ${owner}/${repo}#${n} → ${hubRef(sub.number)} Done${parentLine ? ' · ' + parentLine.replace(/^- /, '') : ''}`);
+      if (sub.state === 'closed') await github.rest.issues.update({ ...HUB, issue_number: sub.number, state: 'open' });
+      await setStatus(sub.node_id, target);
+      moved.push(`- ${owner}/${repo}#${n} → ${hubRef(sub.number)} ${STATUS_NAME[target]}`);
     }
     await github.rest.issues.createComment({
       owner, repo, issue_number: pr.number,
-      body: ['### 🚀 Release em produção', `${nums.size} PR(s) na release; ${closed.length} sub-issue(s) fechada(s):`, ...closed].join('\n'),
+      body: [
+        '### 🚀 Release em produção',
+        `${nums.size} PR(s) na release; ${moved.length} item(ns) em **${STATUS_NAME[target]}**:`,
+        ...moved,
+        '',
+        'Depois de conferir em produção, um dev move cada item para **Done** no board. Nada vira Done sozinho.',
+      ].join('\n'),
     });
-    core.info(`Release: ${closed.length} sub-issue(s) fechada(s)`);
+    core.info(`Release: ${moved.length} item(ns) em ${STATUS_NAME[target]}`);
   }
 
   function buildBody() {
@@ -326,11 +330,22 @@ module.exports = async ({ github, context, core }) => {
       }
       await setStatus(issue.node_id, PROJECT.qa);
       const parentNumber = await currentParentNumber(issue.number);
-      addEvent('Mergeado na dev', `Mergeado na dev por ${pr.merged_by?.login || 'alguém'}: em homologação até a release da sprint`);
+      // QA sorteado entre os devs (menos o autor), sem rodízio. Fica como responsável na sub-issue.
+      const prev = /- \*\*QA:\*\* @([\w-]+)/.exec(comment?.body || '');
+      const qa = prev ? prev[1] : lib.pickRandom(lib.DEVS, [pr.user.login]);
+      if (qa && !prev) {
+        try {
+          await github.rest.issues.addAssignees({ ...HUB, issue_number: issue.number, assignees: [qa] });
+        } catch (e) {
+          core.warning(`Não consegui atribuir o QA ${qa}: ${e.message}`);
+        }
+      }
+      addEvent('Mergeado na dev', `Mergeado na dev por ${pr.merged_by?.login || 'alguém'}: em QA no ambiente de dev${qa ? ` (QA: @${qa})` : ''}`);
       await upsertComment(comment, [
         `${COMMENT_TAG}: ${issue.number} -->`,
         '### 🔗 Rastreamento',
-        `- **Sub-issue:** ${hubRef(issue.number)} → QA (na dev; vira Done quando a release da sprint for para a main)`,
+        `- **Sub-issue:** ${hubRef(issue.number)} → QA (na dev; vai para ${PROD_STATUS_NAME} na release e para Done quando um dev marcar)`,
+        qa ? `- **QA:** @${qa} (sorteado) testa no ambiente de dev junto com quem pediu` : null,
         parentNumber ? `- **Issue-mãe:** ${hubRef(parentNumber)}` : null,
         ...historyBlock(),
         '',
@@ -338,26 +353,30 @@ module.exports = async ({ github, context, core }) => {
       ]);
       return;
     }
-    if (issue.state === 'open') {
-      await github.rest.issues.update({
-        ...HUB, issue_number: issue.number, state: 'closed', state_reason: merged ? 'completed' : 'not_planned',
-      });
+    // Merge fora da dev (hotfix → main): está em produção, mas Done continua manual.
+    // Fechado sem merge: a sub-issue fecha como não planejada, sem passar por Done.
+    let statusLine;
+    if (merged) {
+      if (issue.state === 'closed') await github.rest.issues.update({ ...HUB, issue_number: issue.number, state: 'open' });
+      const target = await prodStatus();
+      await setStatus(issue.node_id, target);
+      statusLine = `- **Sub-issue:** ${hubRef(issue.number)} → ${STATUS_NAME[target]} (um dev move para Done depois de conferir em produção)`;
+    } else {
+      if (issue.state === 'open') {
+        await github.rest.issues.update({ ...HUB, issue_number: issue.number, state: 'closed', state_reason: 'not_planned' });
+      }
+      statusLine = `- **Sub-issue:** ${hubRef(issue.number)}: fechada como não planejada (PR fechado sem merge)`;
     }
-    await setStatus(issue.node_id, PROJECT.done);
-
-    let parentLine = merged ? await closeParentIfDone(issue) : null;
-    if (!parentLine) {
-      const parentNumber = await currentParentNumber(issue.number);
-      if (parentNumber) parentLine = `- **Issue-mãe:** ${hubRef(parentNumber)}`;
-    }
-    const closedPreview = lib.previewUrl(repo, pr.number);
+    const parentNumber = await currentParentNumber(issue.number);
+    const parentLine = parentNumber ? `- **Issue-mãe:** ${hubRef(parentNumber)}` : null;
+    const closedPreview = lib.previewUrl(repo, pr.number, pr.base.ref);
     addEvent(merged ? 'Mergeado' : 'Fechado sem merge',
-      merged ? `Mergeado por ${pr.merged_by?.login || 'alguém'}: sub-issue ${hubRef(issue.number)} concluída` : `Fechado sem merge: sub-issue ${hubRef(issue.number)} não planejada`);
+      merged ? `Mergeado na ${pr.base.ref} por ${pr.merged_by?.login || 'alguém'}: em produção` : `Fechado sem merge: sub-issue ${hubRef(issue.number)} não planejada`);
     if (closedPreview) addEvent('Homologação removida', 'Ambiente de homologação removido pelo Coolify');
     await upsertComment(comment, [
       `${COMMENT_TAG}: ${issue.number} -->`,
       '### 🔗 Rastreamento',
-      `- **Sub-issue:** ${hubRef(issue.number)}: ${merged ? 'fechada como concluída (merge)' : 'fechada como não planejada (PR fechado sem merge)'} → Done`,
+      statusLine,
       parentLine,
       closedPreview ? `- **Homologação:** ~~${closedPreview}~~ (ambiente removido após o ${merged ? 'merge' : 'fechamento'}; o link não abre mais)` : null,
       ...historyBlock(),
@@ -409,7 +428,7 @@ module.exports = async ({ github, context, core }) => {
 
   // Rascunho = In progress; pronto para revisão = In review. Com preview no ar,
   // o pedido (issue-mãe) vai para QA: é a vez de quem pediu testar.
-  const preview = pr.draft ? null : lib.previewUrl(repo, pr.number);
+  const preview = pr.draft ? null : lib.previewUrl(repo, pr.number, pr.base.ref);
   const subStatus = pr.draft ? PROJECT.inProgress : PROJECT.inReview;
   const parentStatus = preview ? PROJECT.qa : PROJECT.inProgress;
   if (parent) {
