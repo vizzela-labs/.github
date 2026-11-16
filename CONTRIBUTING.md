@@ -59,8 +59,11 @@ A **dev** é o tronco (e a branch padrão dos repos). A **main** é o que está 
 | **Como testar** | Todo PR traz o link do ambiente já buildado e os passos, direto. Seção vazia = check **Como testar** vermelho |
 | **Preview por PR** | PR para a `dev` sobe sozinho em `<app>-pr-<nº>.equipevizzela.com.br`, com as variáveis do ambiente de dev |
 | **QA sorteado** | No merge na `dev`, a automação sorteia um dev (menos o autor) para testar no ambiente de dev junto com quem pediu |
-| **Spec** | Fica no repo do back, em `specs/<nº>-slug/` (`requisitos.md` ou `bugfix.md`, `design.md`, `contrato.yaml`, `tarefas.md`). PR que mexe em `specs/` precisa de 2 aprovações (back e front): sem elas, o check **Spec: aprovações** fica vermelho, sem bloquear |
-| **Mock do front** | Dentro do front, com MSW, em `src/mocks/<nº>-slug/`, gerado do contrato. Sai no PR de integração; mock indo para a `main` deixa o check **Release: sem mock** vermelho |
+| **Spec** | Fica no repo do back, em `specs/<nº>-slug/` (`requisitos.md` ou `bugfix.md`, `design.md`, `contrato.yaml`, `tarefas.md`), a partir do [modelo](specs-modelo/). No PR, três checks: **Spec: formato** (requisitos em EARS, bugfix com HOJE/ESPERADO/INALTERADO, nenhuma pergunta em aberto), **Spec: contrato** (OpenAPI válido e sem quebrar quem já consome; com `!` no título, só avisa) e **Spec: aprovações** (2 aprovações, back e front) |
+| **Mock do front** | Dentro do front, com MSW + `@mswjs/source` (handlers gerados do `contrato.yaml` por [`scripts/mock-do-contrato.sh`](scripts/mock-do-contrato.sh)), em `src/mocks/<nº>-slug/` ([padrão](specs-modelo/README.md#mock-do-front-padrão)). Sai no PR de integração; mock indo para a `main` deixa o check **Release: sem mock** vermelho |
+| **Migration** | Roda sozinha no deploy (exceção: `vzla-lojas-api`, que roda à mão com o dono do banco). Migration que apaga ou reescreve dado (DROP, TRUNCATE, RENAME, troca de tipo, `SET NOT NULL`) deixa o check **Migration destrutiva** vermelho: faça backup manual do banco de produção antes da release e escreva "backup" no Como testar, o que transforma o vermelho em aviso. Se der, divida em duas etapas (expandir, depois contrair) |
+| **Healthcheck** | Todo app no Coolify tem healthcheck (no Dockerfile ou no Coolify, em `127.0.0.1`): back em `/health` ou `/api/health`, front em `/`. Deploy com container novo que não responde volta sozinho para o antigo |
+| **Sprint** | 15 dias. No domingo em que a sprint vira, a automação abre no `vzla-backlog` a issue **Benchmark · Sprint DD/MM/AAAA** com os números da sprint; cada dev responde a retro nela |
 | **Pronto é manual** | Release e hotfix levam o item para **Em produção**. Um dev move para **Done** no board depois de conferir em produção. Nenhuma automação marca Done |
 
 Nenhum desses checks bloqueia o merge (o plano Free não bloqueia em repo privado): eles avisam, e o combinado é não mergear com check vermelho.
@@ -77,8 +80,18 @@ Nenhum desses checks bloqueia o merge (o plano Free não bloqueia em repo privad
 | PR fechado sem merge | Fecha a sub-issue como *not planned*. A mãe não é tocada. |
 | PR aberto / reaberto / saiu de draft | O **Claude** revisa o PR seguindo [`review/diretrizes.md`](review/diretrizes.md): comentários inline só para problemas concretos (🔴/🟡/🔵) e um resumo com veredito. É consultivo: não aprova, não bloqueia, não commita. |
 | Comentário com `@claude ...` no PR | O Claude responde no PR: tira dúvida, explica trecho ou faz outra rodada de review. |
+| Coolify avisa no PR que o preview subiu (back com `@nestjs/swagger`) | Check **Contrato × preview**: cada `specs/*/contrato.yaml` do repo contra o `docs-json` do preview. Endpoint ainda não feito só conta; campo prometido que falta, tipo ou status diferente deixam vermelho. |
+| `@claude valide` no PR | O Claude confere o PR contra a spec (`specs/<nº>-*/`) e responde com uma tabela requisito → atendido / parcial / não atendido. |
+| `@claude corrija <o quê>` no PR | O Claude aplica a correção e commita **na branch do PR** (nunca na dev ou na main, nunca mergeia). Quem pediu revisa o commit. |
+| Issue nova no `vzla-backlog` | O Claude comenta o caminho sugerido (padrão, `plan`, `quick-spec`, `spec`, `bugfix-spec`), se vale `planning` e o que falta perguntar. Só sugere: quem pega a issue aplica a label. |
+| Label `quick-spec`, `spec` ou `bugfix-spec` na issue | O Claude comenta um rascunho da spec (requisitos EARS ou HOJE/ESPERADO/INALTERADO) com as perguntas em aberto, para copiar para `specs/` no back. |
+| Domingo (sprint) | Cria a sprint atual e a próxima, abre o benchmark da sprint que acabou e leva os itens abertos para a sprint nova. |
 
 Sem issue-mãe, a sub-issue é criada solta com a label `sem-issue-mae`, e o comentário do PR avisa. Para não gerar sub-issue, aplique a label `no-issue` no PR. PRs de bots (`*[bot]`) são ignorados.
+
+## Agentes (Claude, Codex…)
+
+Cada repo tem no `CLAUDE.md` (ou `AGENTS.md`) a seção **Fluxo Vizzela**, entre `<!-- vzla:fluxo -->` e `<!-- /vzla:fluxo -->`, gerada por [`scripts/agentes.js`](scripts/agentes.js). Para mudar, edite lá e reaplique; o resto do arquivo é do repo.
 
 ## Adicionar a automação a um repo
 

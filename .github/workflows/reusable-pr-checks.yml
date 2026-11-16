@@ -44,6 +44,91 @@ jobs:
           script: |
             return await require('./.vzla/scripts/pr-checks.js')({ github, context, core, mode: 'spec' })
 
+  spec-formato:
+    name: 'Spec: formato'
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      contratos: ${{ steps.lint.outputs.contratos }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          repository: vizzela-labs/.github
+          ref: main
+          path: .vzla
+          persist-credentials: false
+      - id: lint
+        uses: actions/github-script@v8
+        with:
+          script: |
+            return await require('./.vzla/scripts/pr-checks.js')({ github, context, core, mode: 'spec-formato' })
+
+  spec-contrato:
+    name: 'Spec: contrato'
+    needs: spec-formato
+    if: always() && needs.spec-formato.outputs.contratos != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Redocly (regras mínimas)
+        env:
+          CONTRATOS: ${{ needs.spec-formato.outputs.contratos }}
+        run: |
+          # shellcheck disable=SC2086 # um caminho por palavra, de propósito
+          npx --yes @redocly/cli@1 lint $CONTRATOS --extends=minimal --format=github-actions
+      - name: Quebra em relação à ${{ github.event.pull_request.base.ref }}
+        # Contrato que já existia e mudou de um jeito que quebra quem consome. Com "!" no título
+        # (breaking change assumido), só avisa.
+        if: always()
+        env:
+          CONTRATOS: ${{ needs.spec-formato.outputs.contratos }}
+          BASE: origin/${{ github.event.pull_request.base.ref }}
+          ASSUMIDO: ${{ contains(github.event.pull_request.title, ')!:') }}
+        run: |
+          curl -fsSL https://github.com/oasdiff/oasdiff/releases/download/v1.34.1/oasdiff_1.34.1_linux_amd64.tar.gz | tar xz -C "$RUNNER_TEMP" oasdiff
+          falhou=0
+          for c in $CONTRATOS; do
+            if ! git cat-file -e "$BASE:$c" 2>/dev/null; then echo "$c: contrato novo, nada a comparar."; continue; fi
+            git show "$BASE:$c" > "$RUNNER_TEMP/base.yaml"
+            if ! "$RUNNER_TEMP/oasdiff" breaking "$RUNNER_TEMP/base.yaml" "$c" --fail-on ERR --format githubactions; then falhou=1; fi
+          done
+          if [ "$falhou" = 1 ]; then
+            if [ "$ASSUMIDO" = true ]; then echo "::warning::Contrato com breaking change assumido (! no título). Avise quem consome."; exit 0; fi
+            echo "::error::O contrato mudou de um jeito que quebra quem já consome. Se é de propósito, marque o título com ! (ex.: feat(api)!: …) e avise o outro lado."
+            exit 1
+          fi
+
+  migration:
+    name: 'Migration destrutiva'
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          repository: vizzela-labs/.github
+          ref: main
+          path: .vzla
+          persist-credentials: false
+      - uses: actions/github-script@v8
+        with:
+          script: |
+            return await require('./.vzla/scripts/pr-checks.js')({ github, context, core, mode: 'migration' })
+
   mock:
     name: 'Release: sem mock'
     if: github.event_name == 'pull_request' && github.event.pull_request.base.ref == 'main'

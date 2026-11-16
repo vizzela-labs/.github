@@ -8,7 +8,7 @@ on:
   pull_request_review:
     types: [submitted, dismissed]
   issue_comment:
-    types: [created]
+    types: [created, edited] # edited: o Coolify edita o comentário do preview a cada deploy
   pull_request_review_comment:
     types: [created]
 
@@ -33,6 +33,21 @@ jobs:
       contents: read
       pull-requests: write
 
+  contrato:
+    name: Contrato
+    # O Coolify avisou que o preview subiu: compara specs/*/contrato.yaml com o OpenAPI do preview.
+    if: >-
+      github.event_name == 'issue_comment' && github.event.issue.pull_request &&
+      github.event.comment.user.login == 'vizzela-labs[bot]'
+    concurrency:
+      group: contrato-${{ github.event.issue.number }}
+      cancel-in-progress: true
+    uses: vizzela-labs/.github/.github/workflows/reusable-contract.yml@main
+    permissions:
+      contents: read
+      checks: write
+      pull-requests: read
+
   sub-issue:
     name: Sub-issue
     if: github.event_name == 'pull_request' && github.event.action != 'synchronize'
@@ -51,7 +66,7 @@ jobs:
     if: >-
       (github.event_name == 'pull_request' && !github.event.pull_request.draft &&
         contains(fromJSON('["opened","reopened","ready_for_review"]'), github.event.action)) ||
-      (github.event_name == 'issue_comment' && github.event.issue.pull_request && contains(github.event.comment.body, '@claude')) ||
+      (github.event_name == 'issue_comment' && github.event.action == 'created' && github.event.issue.pull_request && contains(github.event.comment.body, '@claude')) ||
       (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude'))
     concurrency:
       group: pr-review-${{ github.event.pull_request.number || github.event.issue.number }}
