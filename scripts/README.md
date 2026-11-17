@@ -6,7 +6,8 @@
 | `pr-title.js` | Usado por `reusable-pr-title.yml`: valida o título e aplica a label de tipo. |
 | `pr-sync.js` | Usado por `reusable-pr-sync.yml`: cria, atualiza e fecha a sub-issue no `vzla-backlog` e mexe no Status do projeto. |
 | `pr-checks.js` | Usado por `reusable-pr-checks.yml`: checks **Como testar**, **Spec: formato**, **Spec: aprovações**, **Migration destrutiva**, **Release: sem mock** e o sorteio do revisor (o **Spec: contrato** roda o Redocly direto no workflow). |
-| `spec-lint.js` | Formato da spec (EARS, blocos do bugfix, pendências), usado pelo check **Spec: formato**. |
+| `spec-lint.js` | Formato da spec (EARS, blocos do bugfix, tabela Branches, pendências), usado pelo check **Spec: formato**. |
+| `spec-plan.js` | Tabela **Branches** do `tarefas.md`: revisores do PR de spec gerado da triagem (`reusable-spec-draft.yml`) e, no merge da spec, as branches e o prompt de cada dono (`pr-sync.js`). |
 | `sprint.js` | Usado por `reusable-sprint.yml`: sprints de 15 dias, benchmark e itens abertos para a sprint nova. |
 | `benchmark.js` | Issue **Benchmark · Sprint** com os números da sprint encerrada. |
 | `contract-check.sh` | Usado por `reusable-contract.yml`: compara `specs/*/contrato.yaml` com o OpenAPI do preview (oasdiff). |

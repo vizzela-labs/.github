@@ -11,9 +11,11 @@ on:
 jobs:
   sync:
     name: Sincroniza sub-issue
-    # PRs de bot são ignorados, exceto o merge da release (dev → main), que fecha as sub-issues.
+    # PRs de bot são ignorados, exceto o merge da release (dev → main), que fecha as sub-issues,
+    # e o PR de spec gerado da triagem (docs/<nº>-slug), que anda pelo board como qualquer spec.
     if: >-
       !endsWith(github.event.pull_request.user.login, '[bot]') ||
+      startsWith(github.event.pull_request.head.ref, 'docs/') ||
       (github.event.action == 'closed' && github.event.pull_request.head.ref == 'dev' && github.event.pull_request.base.ref == 'main')
     runs-on: ubuntu-latest
     timeout-minutes: 5

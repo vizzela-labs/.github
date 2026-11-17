@@ -1,0 +1,265 @@
+name: Backlog · spec gerada da triagem
+
+# Instalado no vzla-backlog (workflow-templates/backlog-triagem.yml, job "spec").
+#   label quick-spec / spec / bugfix-spec (ou repo:<back> numa issue que já tem uma delas)
+#     → o Claude escreve specs/<nº>-slug/ no back (label repo:<back>), a partir da issue, da
+#       triagem e do código; o workflow abre o PR de spec como rascunho e comenta as perguntas.
+# O Claude roda com um token só de leitura. Quem cria a branch e o PR é o App vizzela-labs
+# (precisa de contents:write nos backs). Nunca commita na dev/main, nunca mergeia, nunca aprova.
+on:
+  workflow_call:
+    inputs:
+      model:
+        type: string
+        default: claude-opus-5-5
+      max_turns:
+        type: number
+        default: 60
+    secrets:
+      claude_code_oauth_token:
+        required: false
+      app_id:
+        required: false
+      app_private_key:
+        required: false
+
+jobs:
+  spec:
+    name: Spec em PR
+    if: >-
+      !endsWith(github.event.issue.user.login, '[bot]') &&
+      !startsWith(github.event.issue.title, '[') &&
+      github.event.action == 'labeled' && (
+      contains(fromJSON('["quick-spec","spec","bugfix-spec"]'), github.event.label.name) || (
+      startsWith(github.event.label.name, 'repo:') && (
+      contains(github.event.issue.labels.*.name, 'quick-spec') ||
+      contains(github.event.issue.labels.*.name, 'spec') ||
+      contains(github.event.issue.labels.*.name, 'bugfix-spec'))))
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    permissions:
+      contents: read
+      issues: write
+      id-token: write
+    steps:
+      - name: Confere secrets
+        id: guard
+        env:
+          CLAUDE_TOKEN: ${{ secrets.claude_code_oauth_token }}
+          APP_ID: ${{ secrets.app_id }}
+          APP_KEY: ${{ secrets.app_private_key }}
+        run: |
+          if [ -z "$CLAUDE_TOKEN" ] || [ -z "$APP_ID" ] || [ -z "$APP_KEY" ]; then
+            echo "::warning::Secrets CLAUDE_CODE_OAUTH_TOKEN / VZLA_APP_ID / VZLA_APP_PRIVATE_KEY ausentes no vzla-backlog. Spec NÃO gerada."
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout do vzla-backlog
+        if: steps.guard.outputs.ok == 'true'
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Baixa scripts, diretrizes e modelos de vizzela-labs/.github
+        if: steps.guard.outputs.ok == 'true'
+        uses: actions/checkout@v5
+        with:
+          repository: vizzela-labs/.github
+          ref: main
+          path: .vzla
+          sparse-checkout: |
+            review
+            scripts
+            specs-modelo
+          persist-credentials: false
+
+      - name: Token do App vizzela-labs (escrita, só nos passos do workflow)
+        id: app
+        if: steps.guard.outputs.ok == 'true'
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.app_id }}
+          private-key: ${{ secrets.app_private_key }}
+          owner: vizzela-labs
+
+      - name: Descobre o back, a pasta e se a spec já existe
+        id: alvo
+        if: steps.guard.outputs.ok == 'true'
+        uses: actions/github-script@v8
+        with:
+          github-token: ${{ steps.app.outputs.token }}
+          script: |
+            const plan = require('./.vzla/scripts/spec-plan.js');
+            const lib = require('./.vzla/scripts/lib.js');
+            const { issue } = context.payload;
+            const HUB = { owner: 'vizzela-labs', repo: 'vzla-backlog' };
+            const say = async (tag, body) => {
+              const comments = await github.paginate(github.rest.issues.listComments, { ...HUB, issue_number: issue.number, per_page: 100 });
+              if (!comments.some((c) => c.body?.includes(tag))) await github.rest.issues.createComment({ ...HUB, issue_number: issue.number, body: `${tag}\n${body}` });
+            };
+            const { data: fresh } = await github.rest.issues.get({ ...HUB, issue_number: issue.number });
+            const kind = lib.SPEC_PATH_LABELS.find((l) => fresh.labels.some((x) => x.name === l));
+            const back = plan.backRepoFromLabels(fresh.labels);
+            if (!kind) return core.setOutput('ok', 'false');
+            if (!back) {
+              await say('<!-- vzla:spec-sem-back -->',
+                `Para gerar a spec em PR, diga em qual back ela mora: aplique **uma** label \`repo:<back>\` (ex.: \`repo:vzla-cashback\`). A spec fica no back mesmo quando o trabalho é no front. Backs: ${lib.BACK_REPOS.map((r) => `\`${r}\``).join(', ')}.`);
+              core.info('Sem label repo:<back>. Nada gerado.');
+              return core.setOutput('ok', 'false');
+            }
+            const slug = plan.slugify(fresh.title);
+            const prefix = `${issue.number}-`;
+            const repoRef = { owner: 'vizzela-labs', repo: back };
+            const open = await github.paginate(github.rest.pulls.list, { ...repoRef, state: 'open', per_page: 100 });
+            const already = open.find((p) => p.head.ref.startsWith(`docs/${prefix}`) || lib.parseParent(p.body, p.head.ref)?.number === issue.number && /^docs\//.test(p.head.ref));
+            if (already) {
+              core.info(`Já existe o PR de spec ${already.html_url}.`);
+              return core.setOutput('ok', 'false');
+            }
+            try {
+              const { data: dirs } = await github.rest.repos.getContent({ ...repoRef, path: 'specs', ref: 'dev' });
+              const hit = Array.isArray(dirs) && dirs.find((d) => d.type === 'dir' && d.name.startsWith(prefix));
+              if (hit) {
+                await say('<!-- vzla:spec-existe -->',
+                  `Já existe \`specs/${hit.name}/\` na \`dev\` do ${back}. Para mudar a spec, abra um PR de spec à mão (2 aprovações, back e front).`);
+                return core.setOutput('ok', 'false');
+              }
+            } catch (e) {
+              if (e.status !== 404) throw e; // sem pasta specs/ ainda: tudo bem
+            }
+            core.setOutput('ok', 'true');
+            core.setOutput('kind', kind);
+            core.setOutput('back', back);
+            core.setOutput('dir', `specs/${issue.number}-${slug}`);
+            core.setOutput('branch', `docs/${issue.number}-${slug}`);
+
+      - name: Token só de leitura para o Claude
+        id: ro
+        if: steps.alvo.outputs.ok == 'true'
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.app_id }}
+          private-key: ${{ secrets.app_private_key }}
+          owner: vizzela-labs
+          permission-contents: read
+          permission-issues: read
+          permission-pull-requests: read
+
+      - name: Checkout do back (dev)
+        if: steps.alvo.outputs.ok == 'true'
+        uses: actions/checkout@v5
+        with:
+          repository: vizzela-labs/${{ steps.alvo.outputs.back }}
+          ref: dev
+          path: back
+          token: ${{ steps.ro.outputs.token }}
+          persist-credentials: false
+
+      - name: Claude escreve a spec
+        if: steps.alvo.outputs.ok == 'true'
+        uses: anthropics/claude-code-action@v1
+        env:
+          GH_TOKEN: ${{ steps.ro.outputs.token }}
+        with:
+          claude_code_oauth_token: ${{ secrets.claude_code_oauth_token }}
+          github_token: ${{ steps.ro.outputs.token }}
+          prompt: |
+            ISSUE: vizzela-labs/vzla-backlog#${{ github.event.issue.number }}
+            LABEL: ${{ steps.alvo.outputs.kind }}
+            BACK: vizzela-labs/${{ steps.alvo.outputs.back }} (código da dev em `back/`)
+            PASTA: back/${{ steps.alvo.outputs.dir }}/
+
+            1. Leia `.vzla/review/spec.md` e siga-o à risca. Os modelos estão em `.vzla/specs-modelo/`.
+            2. Leia a issue com `gh issue view ${{ github.event.issue.number }} -R vizzela-labs/vzla-backlog --comments`, e a issue-mãe e as sub-issues, se houver.
+            3. Leia o código do back que a feature toca antes de escrever o contrato.
+            4. Escreva os arquivos da spec em PASTA, e `/tmp/spec/resumo.md` e `/tmp/spec/perguntas.md`.
+          claude_args: |
+            --model ${{ inputs.model }}
+            --max-turns ${{ inputs.max_turns }}
+            --allowedTools "Read,Glob,Grep,Write,Edit,MultiEdit,Bash(mkdir -p /tmp/spec),Bash(ls:*),Bash(gh issue view:*),Bash(gh api repos/vizzela-labs/:*),Bash(gh search code:*),Bash(gh search issues:*)"
+            --disallowedTools "Bash(git commit:*),Bash(git push:*),Bash(gh issue comment:*),Bash(gh issue edit:*),Bash(gh pr:*),Bash(gh api -X:*),Bash(gh api --method:*)"
+            --append-system-prompt "Responda em português do Brasil. Escreva só dentro de back/${{ steps.alvo.outputs.dir }}/ e de /tmp/spec/. Você não commita, não abre PR e não comenta: o workflow faz isso com o que você escrever. Não invente regra de negócio: o que faltar vira [PERGUNTA: ...] no arquivo."
+
+      - name: Abre o PR de spec (rascunho) e comenta as perguntas
+        if: steps.alvo.outputs.ok == 'true'
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          BACK: ${{ steps.alvo.outputs.back }}
+          DIR: ${{ steps.alvo.outputs.dir }}
+          BRANCH: ${{ steps.alvo.outputs.branch }}
+          KIND: ${{ steps.alvo.outputs.kind }}
+          ISSUE: ${{ github.event.issue.number }}
+          TITLE: ${{ github.event.issue.title }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          HUB=vizzela-labs/vzla-backlog
+          cd back
+          if [ -z "$(git status --porcelain --untracked-files=all -- "$DIR")" ]; then
+            gh issue comment "$ISSUE" -R "$HUB" --body "O Claude não gerou a spec em \`$DIR\` (veja o [log]($RUN_URL)). Rode de novo tirando e pondo a label \`$KIND\`."
+            exit 1
+          fi
+          fora=$(git status --porcelain --untracked-files=all | awk '{print $2}' | grep -v "^$DIR/" || true)
+          [ -n "$fora" ] && echo "::warning::Arquivos fora de $DIR ignorados: $fora"
+
+          git switch -c "$BRANCH"
+          git add -- "$DIR"
+          git -c user.name='vizzela-labs[bot]' -c user.email='vizzela-labs[bot]@users.noreply.github.com' \
+            commit -q -m "docs(spec): spec da vzla-backlog#$ISSUE gerada da triagem" -m "Issue-mãe: vzla-backlog#$ISSUE"
+          if ! git push -q "https://x-access-token:${GH_TOKEN}@github.com/vizzela-labs/$BACK.git" "HEAD:refs/heads/$BRANCH" 2>/tmp/push.err; then
+            echo "::error::Push recusado: $(cat /tmp/push.err)"
+            {
+              echo "<!-- vzla:spec-rascunho -->"
+              echo "## 🤖 Spec gerada (sem PR)"
+              echo
+              echo "Não consegui criar a branch \`$BRANCH\` no $BACK: o App **vizzela-labs** precisa de **Contents: write** nos backs ([log]($RUN_URL)). Copie os arquivos abaixo para \`$DIR/\` e abra o PR de spec à mão."
+              for f in $(git show --name-only --format= HEAD); do
+                printf '\n<details><summary><code>%s</code></summary>\n\n````%s\n' "$f" "${f##*.}"
+                head -c 15000 "$f"; printf '\n````\n</details>\n'
+              done
+            } > /tmp/fallback.md
+            head -c 60000 /tmp/fallback.md > /tmp/fallback.cut.md
+            gh issue comment "$ISSUE" -R "$HUB" --body-file /tmp/fallback.cut.md
+            exit 1
+          fi
+
+          {
+            echo "## Resumo"; echo
+            cat /tmp/spec/resumo.md 2>/dev/null || echo "Spec da vzla-backlog#$ISSUE ($KIND)."
+            echo; echo "## Por quê"; echo
+            echo "Spec gerada automaticamente da issue e da triagem, a partir do código da \`dev\`. Ela é o contrato entre back e front: depois de aprovada, cada linha da tabela **Branches** do \`tarefas.md\` vira uma branch."
+            echo; echo "## Como testar"; echo
+            echo "Spec não tem ambiente. Leia \`$DIR/\`, responda as perguntas do primeiro comentário e peça \`@claude corrija aplique as respostas\`. Sem nenhum \`[PERGUNTA]\`, o check **Spec: formato** fica verde: tire do rascunho e aprove (back e front)."
+            echo; echo "## Issue-mãe"; echo
+            echo "Issue-mãe: vzla-backlog#$ISSUE"
+            echo; echo "🤖 Generated with [Claude Code](https://claude.com/claude-code)"
+          } > /tmp/pr-body.md
+          title="docs(spec): $TITLE"
+          url=$(gh pr create -R "vizzela-labs/$BACK" --draft --base dev --head "$BRANCH" --title "${title:0:120}" --body-file /tmp/pr-body.md)
+          pr=${url##*/}
+          echo "PR de spec: $url"
+
+          if [ -s /tmp/spec/perguntas.md ]; then
+            gh pr comment "$pr" -R "vizzela-labs/$BACK" --body-file /tmp/spec/perguntas.md
+          fi
+
+          # Revisores: quem está na issue e os donos da tabela Branches (back e front aprovam).
+          reviewers=$( (gh issue view "$ISSUE" -R "$HUB" --json assignees --jq '.assignees[].login'
+            node -e "
+              const fs = require('fs'); const plan = require('../.vzla/scripts/spec-plan.js'); const p = process.argv[1];
+              if (fs.existsSync(p)) for (const l of plan.owners(plan.parseBranches(fs.readFileSync(p, 'utf8')).rows)) console.log(l);
+            " "$DIR/tarefas.md") | grep -v '\[bot\]$' | sort -u || true)
+          for r in $reviewers; do
+            gh api -X POST "repos/vizzela-labs/$BACK/pulls/$pr/requested_reviewers" -f "reviewers[]=$r" >/dev/null 2>&1 \
+              || echo "::warning::Não consegui pedir review de $r"
+          done
+
+          perguntas=$(grep -ro '\[PERGUNTA' "$DIR" | wc -l | tr -d ' ' || true)
+          gh issue comment "$ISSUE" -R "$HUB" --body "<!-- vzla:spec-pr -->
+          ### 📐 Spec em PR: $url
+          O Claude escreveu \`$DIR/\` no **$BACK** a partir da issue, da triagem e do código. ${perguntas:-0} pergunta(s) em aberto: responda no PR, peça \`@claude corrija aplique as respostas\` e, com o check **Spec: formato** verde, tire do rascunho e aprove (back e front).
+
+          No merge, cada linha da tabela **Branches** do \`tarefas.md\` vira uma branch, e esta issue recebe o prompt para o seu Claude."

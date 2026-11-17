@@ -4,8 +4,7 @@
 //      require('./agentes.js').upsert(texto, repo) → arquivo com a seção trocada ou anexada
 const lib = require('./lib.js');
 
-const BACKS = ['vzla-cashback', 'vzla-tracking', 'vzla-data-hub', 'vizzela-products-backend', 'vzla-gerencial',
-  'vzla-marketplaces-api', 'vizzela-sales-dash', 'vzla-zendesk-gateway', 'vzla-lojas-api', 'vizzela-data-adm', 'vz-ra'];
+const BACKS = lib.BACK_REPOS;
 const FRONTS = {
   'vzla-lojas-admin': 'vzla-lojas-api',
   'vzla-lojas-pdv': 'vzla-lojas-api',

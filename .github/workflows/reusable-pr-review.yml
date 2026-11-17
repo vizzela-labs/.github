@@ -94,7 +94,9 @@ jobs:
   # Sob demanda: "@claude ..." num comentário do PR (só lê; "@claude corrija" é o job abaixo).
   mencao:
     name: Responde @claude
+    # Comentário de bot (ex.: as perguntas do PR de spec, que citam "@claude corrija") não dispara.
     if: >-
+      !endsWith(github.event.comment.user.login, '[bot]') &&
       !contains(github.event.comment.body, '@claude corrij') && (
       (github.event_name == 'issue_comment' && github.event.issue.pull_request && contains(github.event.comment.body, '@claude')) ||
       (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude')))
@@ -156,6 +158,7 @@ jobs:
     name: Corrige (@claude corrija)
     if: >-
       contains(github.event.comment.body, '@claude corrij') &&
+      !endsWith(github.event.comment.user.login, '[bot]') &&
       contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association) && (
       (github.event_name == 'issue_comment' && github.event.issue.pull_request) ||
       github.event_name == 'pull_request_review_comment')
@@ -200,7 +203,9 @@ jobs:
           repository: vizzela-labs/.github
           ref: main
           path: .vzla
-          sparse-checkout: review
+          sparse-checkout: |
+            review
+            specs-modelo
           persist-credentials: false
 
       - name: Claude
@@ -214,4 +219,4 @@ jobs:
             --max-turns ${{ inputs.max_turns }}
             --allowedTools "Read,Glob,Grep,Edit,MultiEdit,Write,mcp__github_comment__update_claude_comment,Bash(gh pr view:*),Bash(gh pr diff:*),Bash(git status:*),Bash(git diff:*),Bash(git log:*),Bash(git show:*),Bash(git add:*),Bash(git commit:*),Bash(git push origin HEAD:*),Bash(npm ci:*),Bash(npm run:*),Bash(npm test:*),Bash(pnpm install:*),Bash(pnpm run:*),Bash(pnpm test:*),Bash(npx tsc:*),Bash(npx prisma generate:*)"
             --disallowedTools "Bash(git push --force:*),Bash(git push -f:*),Bash(git rebase:*),Bash(git reset:*),Bash(gh pr merge:*),Bash(gh pr review:*),Bash(gh pr close:*)"
-            --append-system-prompt "Responda em português do Brasil. Faça só a correção pedida, no menor diff possível, seguindo AGENTS.md/CLAUDE.md do repo e as convenções de .vzla/review/diretrizes.md. Não mexa em .vzla/, .env, migrations já aplicadas nem em src/mocks/ de outra feature. Rode os testes ou o build que existirem antes de commitar. Commit no formato tipo(escopo): descrição, na branch do PR, sem --force. Nunca mergeie, aprove ou feche o PR. Termine dizendo o que mudou e o que quem pediu deve conferir."
+            --append-system-prompt "Responda em português do Brasil. Faça só a correção pedida, no menor diff possível, seguindo AGENTS.md/CLAUDE.md do repo e as convenções de .vzla/review/diretrizes.md. Não mexa em .vzla/, .env, migrations já aplicadas nem em src/mocks/ de outra feature. Rode os testes ou o build que existirem antes de commitar. Commit no formato tipo(escopo): descrição, na branch do PR, sem --force. Nunca mergeie, aprove ou feche o PR. Se o PR só mexe em specs/ (PR de spec), siga a seção 'Quando pedirem @claude corrija' de .vzla/review/spec.md e os modelos de .vzla/specs-modelo/. Termine dizendo o que mudou e o que quem pediu deve conferir."

@@ -60,7 +60,7 @@ A **dev** é o tronco (e a branch padrão dos repos). A **main** é o que está 
 | **Como testar** | Todo PR traz o link do ambiente já buildado e os passos, direto. Seção vazia = check **Como testar** vermelho |
 | **Preview por PR** | PR para a `dev` sobe sozinho em `<app>-pr-<nº>.equipevizzela.com.br`, com as variáveis do ambiente de dev |
 | **QA sorteado** | No merge de um PR de código na `dev`, a automação sorteia um dev (menos o autor) para testar no ambiente de dev junto com quem pediu |
-| **Spec** | Fica no repo do back, em `specs/<nº>-slug/` (`requisitos.md` ou `bugfix.md`, `design.md`, `contrato.yaml`, `tarefas.md`), a partir do [modelo](specs-modelo/). No PR, três checks: **Spec: formato** (requisitos em EARS, bugfix com HOJE/ESPERADO/INALTERADO, nenhuma pergunta em aberto), **Spec: contrato** (OpenAPI válido e sem quebrar quem já consome; com `!` no título, só avisa) e **Spec: aprovações** (2 aprovações, back e front) |
+| **Spec** | Fica no repo do back, em `specs/<nº>-slug/` (`requisitos.md` ou `bugfix.md`, `design.md`, `contrato.yaml`, `tarefas.md`), a partir do [modelo](specs-modelo/). Nasce sozinha da triagem: a label de caminho na issue (com `repo:<back>`) faz o Claude abrir o PR de spec em rascunho, com as perguntas que faltam. O `tarefas.md` termina com a tabela **Branches** (repo, branch, issue e dono de cada PR), que vira as branches no merge. No PR, três checks: **Spec: formato** (requisitos em EARS, bugfix com HOJE/ESPERADO/INALTERADO, tabela **Branches** no `tarefas.md`, nenhuma pergunta em aberto), **Spec: contrato** (OpenAPI válido e sem quebrar quem já consome; com `!` no título, só avisa) e **Spec: aprovações** (2 aprovações, back e front) |
 | **Mock do front** | Dentro do front, com MSW + `@mswjs/source` (handlers gerados do `contrato.yaml` por [`scripts/mock-do-contrato.sh`](scripts/mock-do-contrato.sh)), em `src/mocks/<nº>-slug/` ([padrão](specs-modelo/README.md#mock-do-front-padrão)). Sai no PR de integração; mock indo para a `main` deixa o check **Release: sem mock** vermelho |
 | **Migration** | Roda sozinha no deploy (exceção: `vzla-lojas-api`, que roda à mão com o dono do banco). Migration que apaga ou reescreve dado (DROP, TRUNCATE, RENAME, troca de tipo, `SET NOT NULL`) deixa o check **Migration destrutiva** vermelho: faça backup manual do banco de produção antes da release e escreva "backup" no Como testar, o que transforma o vermelho em aviso. Se der, divida em duas etapas (expandir, depois contrair) |
 | **Healthcheck** | Todo app no Coolify tem healthcheck (no Dockerfile ou no Coolify, em `127.0.0.1`): back em `/health` ou `/api/health`, front em `/`. Deploy com container novo que não responde volta sozinho para o antigo |
@@ -74,7 +74,7 @@ Nenhum desses checks bloqueia o merge (o plano Free não bloqueia em repo privad
 | Quando | O que a automação faz |
 |---|---|
 | PR aberto / reaberto / editado | Cria (ou atualiza) a sub-issue `[repo] título do PR` no `vzla-backlog`, pendura na issue-mãe, coloca no projeto **Tecnologia Vizzela** como *In progress*, atribui ao autor e comenta no PR com os links. A issue-mãe vai para *In progress*, ou *QA* quando o preview do PR sobe. |
-| PR de spec (só mexe em `specs/`) aberto / mergeado | A issue-mãe fica em *Spec* enquanto o PR está aberto (sem anunciar homologação) e vai para *Todo* no merge na `dev`: back e front começam. No merge, a sub-issue do PR de spec fecha como concluída (*Done*), sem QA sorteado, e continua no histórico da mãe; a release não a reabre. |
+| PR de spec (só mexe em `specs/`) aberto / mergeado | A issue-mãe fica em *Spec* enquanto o PR está aberto (sem anunciar homologação) e vai para *Todo* no merge na `dev`: back e front começam. No merge, cada linha da tabela **Branches** do `tarefas.md` vira uma branch saindo da `dev` do repo, e a issue de cada linha recebe a branch e o prompt para o Claude do dono. Ainda no merge, a sub-issue do PR de spec fecha como concluída (*Done*), sem QA sorteado, e continua no histórico da mãe; a release não a reabre. |
 | Issue do `vzla-backlog` atribuída a alguém (em *Backlog*) | Vai para *Triagem*: quem pegou escolhe o caminho. |
 | Label `quick-spec`, `spec` ou `bugfix-spec` na issue (em *Backlog* ou *Triagem*) | Vai para *Spec*. Issue que já passou da spec não volta. |
 | PR sai do rascunho | Pede review de um dev sorteado e sobe o preview do PR |
@@ -88,10 +88,10 @@ Nenhum desses checks bloqueia o merge (o plano Free não bloqueia em repo privad
 | `@claude valide` no PR | O Claude confere o PR contra a spec (`specs/<nº>-*/`) e responde com uma tabela requisito → atendido / parcial / não atendido. |
 | `@claude corrija <o quê>` no PR | O Claude aplica a correção e commita **na branch do PR** (nunca na dev ou na main, nunca mergeia). Quem pediu revisa o commit. |
 | Issue nova no `vzla-backlog` | O Claude comenta só o que falta perguntar a quem pediu (sem pergunta, não comenta). Não sugere caminho nem planning: quem pega a issue decide e aplica a label. |
-| Label `quick-spec`, `spec` ou `bugfix-spec` na issue | O Claude comenta um rascunho da spec (requisitos EARS ou HOJE/ESPERADO/INALTERADO) com as perguntas em aberto, para copiar para `specs/` no back. |
+| Label `quick-spec`, `spec` ou `bugfix-spec` na issue (com uma label `repo:<back>`) | O Claude lê a issue, a triagem e o código da `dev` do back e escreve `specs/<nº>-slug/`; a automação abre o **PR de spec em rascunho** (`docs/<nº>-slug`), pede review de quem está na issue e dos donos da tabela **Branches**, e o primeiro comentário traz o que já está fechado (✅) e o que falta decidir (❓), também marcado como `[PERGUNTA]` nos arquivos. Responda no PR e peça `@claude corrija aplique as respostas`. Sem `repo:<back>`, a issue recebe um comentário pedindo a label. |
 | Domingo (sprint) | Cria a sprint atual e a próxima, abre o benchmark da sprint que acabou e leva os itens abertos para a sprint nova. |
 
-Sem issue-mãe, a sub-issue é criada solta com a label `sem-issue-mae`, e o comentário do PR avisa. Para não gerar sub-issue, aplique a label `no-issue` no PR. PRs de bots (`*[bot]`) são ignorados.
+Sem issue-mãe, a sub-issue é criada solta com a label `sem-issue-mae`, e o comentário do PR avisa. Para não gerar sub-issue, aplique a label `no-issue` no PR. PRs de bots (`*[bot]`) são ignorados, menos o PR de spec gerado da triagem.
 
 ## Agentes (Claude, Codex…)
 
@@ -105,3 +105,5 @@ Cada repo tem no `CLAUDE.md` (ou `AGENTS.md`) a seção **Fluxo Vizzela**, entre
 ```
 
 Veja [`scripts/README.md`](scripts/README.md).
+
+O App **vizzela-labs** precisa de **Contents: Read and write** (além de Issues, Pull requests e Projects) para a spec gerada da triagem: é ele quem cria a branch `docs/<nº>-slug` e as branches da tabela **Branches** nos repos. O Claude que escreve a spec recebe um token do App só de leitura.

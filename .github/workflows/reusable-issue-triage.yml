@@ -1,8 +1,8 @@
 name: Backlog · triagem
 
 # Instalado no vzla-backlog (workflow-templates/backlog-triagem.yml).
-#   issue aberta              → comentário só com as perguntas em aberto (o caminho é do dev)
-#   label quick-spec/spec/... → comentário com o rascunho da spec
+#   issue aberta → comentário só com as perguntas em aberto (o caminho é do dev)
+# A spec (label quick-spec / spec / bugfix-spec) sai em PR no back: reusable-spec-draft.yml.
 # O Claude só comenta: não aplica label, não atribui, não fecha.
 on:
   workflow_call:
@@ -19,9 +19,8 @@ jobs:
     name: Claude
     if: >-
       !endsWith(github.event.issue.user.login, '[bot]') &&
-      !startsWith(github.event.issue.title, '[') && (
-      github.event.action == 'opened' ||
-      (github.event.action == 'labeled' && contains(fromJSON('["quick-spec","spec","bugfix-spec"]'), github.event.label.name)))
+      !startsWith(github.event.issue.title, '[') &&
+      github.event.action == 'opened'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -34,7 +33,7 @@ jobs:
         env:
           CLAUDE_TOKEN: ${{ secrets.claude_code_oauth_token }}
           GH_TOKEN: ${{ github.token }}
-          MARK: ${{ github.event.action == 'opened' && 'vzla:triagem' || 'vzla:spec-rascunho' }}
+          MARK: vzla:triagem
         run: |
           if [ -z "$CLAUDE_TOKEN" ]; then
             echo "::warning::Secret CLAUDE_CODE_OAUTH_TOKEN ausente no vzla-backlog. Triagem NÃO executada."
@@ -57,9 +56,7 @@ jobs:
           repository: vizzela-labs/.github
           ref: main
           path: .vzla
-          sparse-checkout: |
-            review
-            specs-modelo
+          sparse-checkout: review
           persist-credentials: false
 
       - name: Claude
@@ -70,12 +67,10 @@ jobs:
           prompt: |
             REPO: ${{ github.repository }}
             ISSUE: #${{ github.event.issue.number }}
-            TAREFA: ${{ github.event.action == 'opened' && 'triagem' || format('rascunho da spec ({0})', github.event.label.name) }}
 
-            1. Leia `.vzla/review/triagem.md` e siga-o à risca para a TAREFA acima.
+            1. Leia `.vzla/review/triagem.md` e siga-o à risca.
             2. Leia a issue com `gh issue view ${{ github.event.issue.number }} --comments`. Se ela tiver issue-mãe ou sub-issues, leia também.
-            3. Para o rascunho da spec, leia os modelos em `.vzla/specs-modelo/`.
-            4. Poste um único comentário com `gh issue comment ${{ github.event.issue.number }} --body-file <arquivo>`, começando pelo marcador indicado em triagem.md.
+            3. Poste um único comentário com `gh issue comment ${{ github.event.issue.number }} --body-file <arquivo>`, começando pelo marcador indicado em triagem.md.
           claude_args: |
             --model ${{ inputs.model }}
             --max-turns 20
