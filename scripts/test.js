@@ -163,8 +163,10 @@ assert.equal(lib.issuePhaseKey({ action: 'labeled', label: 'plan', currentStatus
 const plan = require('./spec-plan.js');
 assert.equal(plan.slugify('Cashback: APIs do painel (hub) e do PDV'), 'cashback-apis-do-painel-hub-e-do-pdv');
 assert.equal(plan.slugify('[FEATURE] Ação rápida'), 'acao-rapida');
-assert.equal(plan.slugify('Um título bem comprido que passa do limite de quarenta caracteres'), 'um-titulo-bem-comprido-que-passa-do');
+assert.equal(plan.slugify('Um título bem comprido que passa do limite de quarenta caracteres'), 'um-titulo-bem-comprido-que-passa');
 assert.equal(plan.slugify('!!!'), 'spec');
+assert.equal(plan.slugify('Painel de administração do cashback no hub'), 'painel-de-administracao-do-cashback');
+assert.equal(plan.slugify('Cashback no PDV: ganhar e resgatar pelo CPF'), 'cashback-no-pdv-ganhar-e-resgatar');
 assert.equal(plan.backRepoFromLabels([{ name: 'feature' }, { name: 'repo:vzla-cashback' }]), 'vzla-cashback');
 assert.equal(plan.backRepoFromLabels(['repo:vzla-panel-hub', 'repo:vzla-cashback']), 'vzla-cashback');
 assert.equal(plan.backRepoFromLabels(['repo:vzla-panel-hub']), null);

@@ -183,7 +183,7 @@ jobs:
           claude_args: |
             --model ${{ inputs.model }}
             --max-turns ${{ inputs.max_turns }}
-            --allowedTools "Read,Glob,Grep,Write,Edit,MultiEdit,Bash(mkdir -p /tmp/spec),Bash(ls:*),Bash(gh issue view:*),Bash(gh api repos/vizzela-labs/:*),Bash(gh search code:*),Bash(gh search issues:*)"
+            --allowedTools "Read,Glob,Grep,Write,Edit,MultiEdit,Bash(mkdir -p /tmp/spec),Bash(ls:*),Bash(gh issue view:*),Bash(gh api repos/vizzela-labs/:*),Bash(gh search code:*),Bash(gh search issues:*),Bash(npx --yes @redocly/cli@1 lint:*)"
             --disallowedTools "Bash(git commit:*),Bash(git push:*),Bash(gh issue comment:*),Bash(gh issue edit:*),Bash(gh pr:*),Bash(gh api -X:*),Bash(gh api --method:*)"
             --append-system-prompt "Responda em português do Brasil. Escreva só dentro de back/${{ steps.alvo.outputs.dir }}/ e de /tmp/spec/. Você não commita, não abre PR e não comenta: o workflow faz isso com o que você escrever. Não invente regra de negócio: o que faltar vira [PERGUNTA: ...] no arquivo."
 

@@ -10,6 +10,8 @@ const ORG = 'vizzela-labs';
 const TRUNK = 'dev';
 const COMMENT_TAG = '<!-- vzla:spec-branches';
 
+const STOP = new Set(['a', 'o', 'as', 'os', 'e', 'de', 'do', 'da', 'dos', 'das', 'no', 'na', 'nos', 'nas', 'em', 'um', 'uma', 'por', 'pelo', 'pela', 'para', 'pra', 'com', 'sem', 'ao']);
+
 /** "Cashback: APIs do painel e do PDV" → "cashback-apis-do-painel-e-do-pdv" (até `max` caracteres, sem cortar palavra). */
 function slugify(title, max = 40) {
   const s = (title || '')
@@ -22,7 +24,10 @@ function slugify(title, max = 40) {
   if (s.length <= max) return s || 'spec';
   const cut = s.slice(0, max + 1);
   const i = cut.lastIndexOf('-');
-  return (i > 10 ? cut.slice(0, i) : s.slice(0, max)).replace(/-+$/, '');
+  const words = (i > 10 ? cut.slice(0, i) : s.slice(0, max)).replace(/-+$/, '').split('-');
+  // Não termina em palavra solta ("…-do-cashback-no" → "…-do-cashback").
+  while (words.length > 1 && STOP.has(words[words.length - 1])) words.pop();
+  return words.join('-');
 }
 
 /** Repo do back onde a spec mora, a partir das labels `repo:<nome>` da issue. Só backs contam. */
