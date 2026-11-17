@@ -106,7 +106,11 @@ jobs:
             if (!kind) return core.setOutput('ok', 'false');
             if (!back) {
               await say('<!-- vzla:spec-sem-back -->',
-                `Para gerar a spec em PR, diga em qual back ela mora: aplique **uma** label \`repo:<back>\` (ex.: \`repo:vzla-cashback\`). A spec fica no back mesmo quando o trabalho é no front. Backs: ${lib.BACK_REPOS.map((r) => `\`${r}\``).join(', ')}.`);
+                (() => {
+                  const backs = fresh.labels.map((l) => l.name).filter((n) => n.startsWith('repo:') && lib.BACK_REPOS.includes(n.slice(5)));
+                  const hoje = backs.length ? ` Hoje a issue tem ${backs.map((b) => `\`${b}\``).join(' e ')}: deixe só a do back onde a spec mora (o outro back entra como linha da tabela Branches).` : '';
+                  return `Para gerar a spec em PR, diga em qual back ela mora: **uma** label \`repo:<back>\` (ex.: \`repo:vzla-cashback\`). A spec fica no back mesmo quando o trabalho é no front.${hoje} Backs: ${lib.BACK_REPOS.map((r) => `\`${r}\``).join(', ')}.`;
+                })());
               core.info('Sem label repo:<back>. Nada gerado.');
               return core.setOutput('ok', 'false');
             }
