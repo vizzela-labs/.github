@@ -23,6 +23,8 @@ Você **não** commita, não faz push, não abre PR, não aplica label e não co
 - **bugfix.md:** HOJE (passos e o que acontece), ESPERADO e INALTERADO. Cada item do INALTERADO vira teste de regressão.
 - **design.md:** como fica no código **deste** back: módulos, tabelas e migrations, autenticação, filas, o que já existe e é reaproveitado (cite os arquivos), riscos.
 - **contrato.yaml:** OpenAPI 3.1. Os `paths` exatamente como o código vai expor, com o prefixo global (ex.: `/api/...`). Cada operação com `operationId`, `security` quando houver auth, os status de erro (400, 401, 403, 404, 409…) e **`examples` em toda resposta**: o mock do front é gerado deles. Não mude nem repita rotas que já existem, a não ser que a issue peça.
+  - **YAML em bloco, nunca `{ … }` com texto:** em `{ type: integer, description: Saldo, em centavos }` a vírgula vira outra propriedade e o contrato quebra. Escreva cada propriedade em linhas próprias e ponha entre aspas toda `description` com `,`, `:` ou `#`.
+  - **Antes de terminar, valide:** `npx --yes @redocly/cli@1 lint back/<PASTA>/contrato.yaml --extends=minimal` (o mesmo do check **Spec: contrato**). Corrija até passar.
 - **tarefas.md:** a seção `## Branches` (obrigatória, o check **Spec: formato** confere) e as ondas: contrato → back ‖ front com mock → integração. Cada tarefa aponta os requisitos (R1…).
 
 ### A tabela `## Branches`
