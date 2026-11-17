@@ -33,7 +33,7 @@ function section(repo) {
     const oa = lib.OPENAPI_PATHS[repo];
     especifico = [
       `- **Specs ficam aqui**, em \`specs/<nº>-slug/\`: \`requisitos.md\` (EARS: \`QUANDO …, O SISTEMA DEVE …\`) ou \`bugfix.md\` (HOJE / ESPERADO / INALTERADO), \`design.md\`, \`contrato.yaml\` (OpenAPI) e \`tarefas.md\`. Modelo: https://github.com/vizzela-labs/.github/tree/main/specs-modelo`,
-      `- **Feature com spec:** leia \`requisitos.md\` e \`contrato.yaml\` antes de codar e implemente exatamente o contrato (paths, campos, tipos, status de erro). Se o contrato precisa mudar, pare: isso é um PR de spec, com 2 aprovações (back e front), não um ajuste no meio do código.`,
+      `- **Feature com spec:** leia \`requisitos.md\` e \`contrato.yaml\` antes de codar e implemente exatamente o contrato (paths, campos, tipos, status de erro). Se o contrato precisa mudar, pare: isso é um PR de spec, com aprovação de outro dev, não um ajuste no meio do código.`,
       `- **Bugfix com spec:** cada item do INALTERADO vira teste de regressão. ESPERADO com pergunta em aberto: não chute, pergunte para quem pediu.`,
       oa
         ? `- **Contrato × preview:** quando o preview sobe, o CI compara cada \`specs/*/contrato.yaml\` com \`${oa}\` do preview. Mantenha os decorators do \`@nestjs/swagger\` em dia (DTOs com \`@ApiProperty\`, respostas com \`@ApiResponse\`), senão o check acusa diferença.`
@@ -50,7 +50,7 @@ function section(repo) {
     const m = MONO[repo];
     especifico = [
       `- **Monorepo:** specs em \`${m.back}/specs/<nº>-slug/\` (modelo: https://github.com/vizzela-labs/.github/tree/main/specs-modelo). Mock do contrato em \`${m.fronts.map((f) => `${f}/src/mocks/<nº>-slug/`).join('` e `')}\`, apagado no PR de integração.`,
-      `- **Feature com spec:** implemente exatamente o \`contrato.yaml\`. Se ele precisa mudar, é um PR de spec com 2 aprovações, não um ajuste no meio do código.`,
+      `- **Feature com spec:** implemente exatamente o \`contrato.yaml\`. Se ele precisa mudar, é um PR de spec com aprovação de outro dev, não um ajuste no meio do código.`,
     ];
   } else {
     throw new Error(`Repo sem classificação (back/front): ${repo}`);

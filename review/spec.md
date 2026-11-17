@@ -1,6 +1,6 @@
 # Spec gerada da triagem — vizzela-labs
 
-Uma issue do `vzla-backlog` recebeu `quick-spec`, `spec` ou `bugfix-spec`. Você escreve a spec no repo do back, a partir da issue, das respostas da triagem e do código, e lista o que ainda falta decidir. O workflow abre o PR de spec (rascunho) com o que você escrever; back e front respondem as perguntas no PR e aprovam.
+Uma issue do `vzla-backlog` recebeu `quick-spec`, `spec` ou `bugfix-spec`. Você escreve a spec no repo do back, a partir da issue, das respostas da triagem e do código, e lista o que ainda falta decidir. O workflow abre o PR de spec (rascunho) com o que você escrever; back e front respondem as perguntas no PR, e um deles aprova.
 
 Você **não** commita, não faz push, não abre PR, não aplica label e não comenta na issue: o workflow faz isso.
 
@@ -69,7 +69,7 @@ Decisão técnica que o código responde (nome de tabela, módulo, padrão de au
 ### Como seguir
 1. Responda as perguntas aqui no PR (uma resposta por número).
 2. Comente `@claude corrija aplique as respostas` para eu atualizar os arquivos e tirar os `[PERGUNTA]`.
-3. Sem nenhum `[PERGUNTA]`, o check **Spec: formato** fica verde. Tire o PR do rascunho e peça as 2 aprovações (back e front).
+3. Sem nenhum `[PERGUNTA]`, o check **Spec: formato** fica verde. Tire o PR do rascunho e peça 1 aprovação (back ou front).
 4. No merge, cada linha da tabela **Branches** do `tarefas.md` vira uma branch, e a issue recebe o prompt para o seu Claude.
 ```
 
