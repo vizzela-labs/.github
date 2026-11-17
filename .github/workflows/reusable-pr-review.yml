@@ -214,9 +214,12 @@ jobs:
         with:
           claude_code_oauth_token: ${{ secrets.claude_code_oauth_token }}
           trigger_phrase: '@claude'
+          # O guard acima já recusa fork e só membros chamam o corrija. Sem isto, PR aberto por
+          # bot (o PR de spec gerado da triagem) não roda nada do checkout, nem o lint do contrato.
+          restrict_untrusted_prs: 'false'
           claude_args: |
             --model ${{ inputs.model }}
             --max-turns ${{ inputs.max_turns }}
-            --allowedTools "Read,Glob,Grep,Edit,MultiEdit,Write,mcp__github_comment__update_claude_comment,Bash(gh pr view:*),Bash(gh pr diff:*),Bash(git status:*),Bash(git diff:*),Bash(git log:*),Bash(git show:*),Bash(git add:*),Bash(git commit:*),Bash(git push origin HEAD:*),Bash(npm ci:*),Bash(npm run:*),Bash(npm test:*),Bash(pnpm install:*),Bash(pnpm run:*),Bash(pnpm test:*),Bash(npx tsc:*),Bash(npx prisma generate:*)"
+            --allowedTools "Read,Glob,Grep,Edit,MultiEdit,Write,mcp__github_comment__update_claude_comment,Bash(gh pr view:*),Bash(gh pr diff:*),Bash(git status:*),Bash(git diff:*),Bash(git log:*),Bash(git show:*),Bash(git add:*),Bash(git commit:*),Bash(git push origin HEAD:*),Bash(npm ci:*),Bash(npm run:*),Bash(npm test:*),Bash(pnpm install:*),Bash(pnpm run:*),Bash(pnpm test:*),Bash(npx tsc:*),Bash(npx prisma generate:*),Bash(npx --yes @redocly/cli@1 lint:*)"
             --disallowedTools "Bash(git push --force:*),Bash(git push -f:*),Bash(git rebase:*),Bash(git reset:*),Bash(gh pr merge:*),Bash(gh pr review:*),Bash(gh pr close:*)"
             --append-system-prompt "Responda em português do Brasil. Faça só a correção pedida, no menor diff possível, seguindo AGENTS.md/CLAUDE.md do repo e as convenções de .vzla/review/diretrizes.md. Não mexa em .vzla/, .env, migrations já aplicadas nem em src/mocks/ de outra feature. Rode os testes ou o build que existirem antes de commitar. Commit no formato tipo(escopo): descrição, na branch do PR, sem --force. Nunca mergeie, aprove ou feche o PR. Se o PR só mexe em specs/ (PR de spec), siga a seção 'Quando pedirem @claude corrija' de .vzla/review/spec.md e os modelos de .vzla/specs-modelo/. Termine dizendo o que mudou e o que quem pediu deve conferir."
