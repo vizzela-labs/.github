@@ -76,7 +76,7 @@ assert.deepEqual(spec.specDirs(['specs/42-x/requisitos.md', 'specs/42-x/contrato
   ['apps/api/specs/7-y', 'specs/42-x']);
 const ok = spec.lintSpec({
   'requisitos.md': '# x\n<!-- QUANDO exemplo -->\n- QUANDO o lojista abre a tela, O SISTEMA DEVE mostrar os cards.\n- O SISTEMA DEVE registrar o acesso.\n- SE a API falhar, ENTÃO O SISTEMA DEVE mostrar o erro.',
-  'tarefas.md': '- [ ] a', 'contrato.yaml': 'openapi: 3.1.0',
+  'tarefas.md': '- [ ] a\n\n## Branches\n| Onda | Repo | Branch | Dono |\n|---|---|---|---|\n| 2 | vzla-cashback | feat/42-x | @h |', 'contrato.yaml': 'openapi: 3.1.0',
 });
 assert.deepEqual(ok, { errors: [], warnings: [] });
 assert.equal(spec.lintSpec({ 'design.md': 'x' }).errors.length, 1);
@@ -158,5 +158,39 @@ assert.equal(lib.issuePhaseKey({ action: 'labeled', label: 'spec', currentStatus
 assert.equal(lib.issuePhaseKey({ action: 'labeled', label: 'bugfix-spec', currentStatus: 'Backlog' }), 'spec');
 assert.equal(lib.issuePhaseKey({ action: 'labeled', label: 'spec', currentStatus: 'Todo' }), null);
 assert.equal(lib.issuePhaseKey({ action: 'labeled', label: 'plan', currentStatus: 'Triagem' }), null);
+
+// plano da spec (tabela Branches do tarefas.md)
+const plan = require('./spec-plan.js');
+assert.equal(plan.slugify('Cashback: APIs do painel (hub) e do PDV'), 'cashback-apis-do-painel-hub-e-do-pdv');
+assert.equal(plan.slugify('[FEATURE] Ação rápida'), 'acao-rapida');
+assert.equal(plan.slugify('Um título bem comprido que passa do limite de quarenta caracteres'), 'um-titulo-bem-comprido-que-passa-do');
+assert.equal(plan.slugify('!!!'), 'spec');
+assert.equal(plan.backRepoFromLabels([{ name: 'feature' }, { name: 'repo:vzla-cashback' }]), 'vzla-cashback');
+assert.equal(plan.backRepoFromLabels(['repo:vzla-panel-hub', 'repo:vzla-cashback']), 'vzla-cashback');
+assert.equal(plan.backRepoFromLabels(['repo:vzla-panel-hub']), null);
+assert.equal(plan.backRepoFromLabels(['repo:vzla-cashback', 'repo:vzla-tracking']), null);
+const tarefas = [
+  '# Tarefas', '', '## Branches', '',
+  '| Onda | Repo | Branch | Issue | Dono | Requisitos |',
+  '|---|---|---|---|---|---|',
+  '| 2 | vizzela-labs/vzla-cashback | `feat/176-admin-api` | #176 | @higorless | R1–R6 |',
+  '| 2 | vzla-panel-hub | feat/174-painel-cashback | vzla-backlog#174 | Moredy | R7 |',
+  '| 3 | todos | — | | | integração |',
+  '', '## Onda 1', '- [ ] x',
+].join('\n');
+const parsed = plan.parseBranches(tarefas);
+assert.deepEqual(parsed.errors, []);
+assert.deepEqual(parsed.rows.map((r) => [r.repo, r.branch, r.issue, r.dono]),
+  [['vzla-cashback', 'feat/176-admin-api', 176, 'higorless'], ['vzla-panel-hub', 'feat/174-painel-cashback', 174, 'Moredy']]);
+assert.deepEqual(plan.owners(parsed.rows), ['higorless', 'Moredy']);
+assert.match(plan.parseBranches('- [ ] a').errors[0], /Branches/);
+assert.match(plan.parseBranches('## Branches\n| Repo | Branch |\n|---|---|\n| vzla-x | minha-branch |').errors[0], /fora do padrão/);
+assert.match(plan.parseBranches('## Branches\n| Repo | Branch |\n|---|---|\n| a, b | feat/1-x |').errors[0], /repo inválido/);
+assert.match(plan.parseBranches('## Branches\n| Repo | Branch |\n|---|---|\n| todos | — |').errors[0], /nenhuma branch/);
+assert.ok(spec.lintSpec({ 'requisitos.md': '- O SISTEMA DEVE x.', 'tarefas.md': '- [ ] a' }).errors.some((e) => /Branches/.test(e)));
+const pr1 = plan.promptFor({ back: 'vzla-cashback', dir: 'specs/176-cashback', row: parsed.rows[1] });
+assert.match(pr1, /gh api "repos\/vizzela-labs\/vzla-cashback\/contents\/specs\/176-cashback/);
+assert.match(pr1, /Issue-mãe: vzla-backlog#174/);
+assert.doesNotMatch(plan.promptFor({ back: 'vzla-cashback', dir: 'specs/176-cashback', row: parsed.rows[0] }), /gh api/);
 
 console.log('ok: todos os testes passaram');

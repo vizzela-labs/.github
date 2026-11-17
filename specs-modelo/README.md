@@ -4,26 +4,34 @@ Copie esta pasta para `specs/<nº>-slug/` no repo do **back** e apague o que nã
 
 | Caminho da issue | Arquivos |
 |---|---|
-| `quick-spec` | `requisitos.md` (e `contrato.yaml`, se mexer na API) |
+| `quick-spec` | `requisitos.md`, `tarefas.md` (e `contrato.yaml`, se mexer na API) |
 | `spec` | `requisitos.md`, `design.md`, `contrato.yaml`, `tarefas.md` |
-| `bugfix-spec` | `bugfix.md` (e `design.md`, se a correção não for óbvia) |
+| `bugfix-spec` | `bugfix.md`, `tarefas.md` (e `design.md`, se a correção não for óbvia) |
 
 ```bash
 mkdir -p specs/42-cashback-extrato
 gh api repos/vizzela-labs/.github/contents/specs-modelo/requisitos.md --jq .content | base64 -d > specs/42-cashback-extrato/requisitos.md
 ```
 
-Ou peça ao Claude Code local: *"monte a spec da vzla-backlog#42 seguindo vizzela-labs/.github/specs-modelo"*.
+Normalmente você não copia nada: a label `quick-spec`, `spec` ou `bugfix-spec` na issue (com `repo:<back>`) faz o Claude escrever a spec e abrir o PR de spec em rascunho, com as perguntas no primeiro comentário. À mão, ou peça ao Claude Code local: *"monte a spec da vzla-backlog#42 seguindo vizzela-labs/.github/specs-modelo"*.
 
 ## Checks no PR da spec
 
 | Check | O que confere |
 |---|---|
-| **Spec: formato** | Requisitos no formato EARS; bugfix com HOJE, ESPERADO e INALTERADO; nenhum `[PERGUNTA]`, `TODO` ou `?` no ESPERADO |
+| **Spec: formato** | Requisitos no formato EARS; bugfix com HOJE, ESPERADO e INALTERADO; `tarefas.md` com a tabela **Branches**; nenhum `[PERGUNTA]`, `TODO` ou `?` no ESPERADO |
 | **Spec: contrato** | `contrato.yaml` válido (Redocly, regras mínimas) e sem quebra em relação à `dev` (oasdiff; com `!` no título, só avisa) |
 | **Spec: aprovações** | 2 aprovações (back e front) |
 
 Todos avisam, nenhum bloqueia.
+
+## Do merge ao código
+
+A tabela **Branches** do `tarefas.md` é o plano de execução. No merge da spec na `dev`:
+
+1. Cada linha com branch vira uma branch saindo da `dev` daquele repo (a que já existe fica como está).
+2. A issue de cada linha (e a issue da spec) recebe um comentário com a branch e o prompt pronto para o Claude do dono.
+3. O dono faz `git fetch && git switch <branch>`, cola o prompt no Claude Code e acompanha: o Claude lê a spec (no back, via `gh api` quando o repo é outro), implementa só a linha dele e abre o PR para a `dev` em rascunho.
 
 ## Mock do front: padrão
 

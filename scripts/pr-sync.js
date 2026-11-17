@@ -2,6 +2,7 @@
 // Roda com o token do GitHub App vizzela-labs (issues:write, organization_projects:write).
 const lib = require('./lib.js');
 const sprint = require('./sprint.js');
+const specPlan = require('./spec-plan.js');
 
 const HUB = { owner: 'vizzela-labs', repo: 'vzla-backlog' };
 const PROJECT = {
@@ -44,7 +45,9 @@ module.exports = async ({ github, context, core }) => {
   const isRelease = pr.base.ref === PROD && pr.head.ref === TRUNK;
   const toTrunk = pr.base.ref === TRUNK;
   const isBot = pr.user?.type === 'Bot' || /\[bot\]$/.test(pr.user?.login || '');
-  if (isBot && !(action === 'closed' && isRelease)) {
+  // PR de spec gerado da triagem (reusable-spec-draft.yml): aberto pelo App, segue o fluxo de spec.
+  const isSpecDraft = isBot && toTrunk && /^docs\/\d+-/.test(pr.head.ref);
+  if (isBot && !isSpecDraft && !(action === 'closed' && isRelease)) {
     core.info('PR de bot: nada a fazer.');
     return;
   }
@@ -362,6 +365,12 @@ module.exports = async ({ github, context, core }) => {
           addEvent('Pedido em Todo', `${hubRef(parentNumber)} em Todo: back e front começam`);
         }
       }
+      // Tabela "## Branches" do tarefas.md: cria as branches e comenta o prompt de cada dono.
+      try {
+        await specPlan.onSpecMerged({ github, core, owner, repo, pr, parentNumber });
+      } catch (e) {
+        core.warning(`Branches da spec não criadas: ${e.message}`);
+      }
       await upsertComment(comment, [
         `${COMMENT_TAG}: ${issue.number} -->`,
         '### 🔗 Rastreamento',
@@ -460,10 +469,12 @@ module.exports = async ({ github, context, core }) => {
     for (const name of labels) await lib.ensureLabel(github, HUB.owner, HUB.repo, name);
     ({ data: issue } = await github.rest.issues.create({ ...HUB, title, body: buildBody(), labels }));
     core.info(`Sub-issue criada: ${hubRef(issue.number)}`);
+    // PR de spec aberto pelo App: a sub-issue fica com quem está na issue-mãe.
+    const assignees = isSpecDraft ? (parent?.assignees || []).map((a) => a.login) : [pr.user.login];
     try {
-      await github.rest.issues.addAssignees({ ...HUB, issue_number: issue.number, assignees: [pr.user.login] });
+      if (assignees.length) await github.rest.issues.addAssignees({ ...HUB, issue_number: issue.number, assignees });
     } catch (e) {
-      core.warning(`Não consegui atribuir ${pr.user.login}: ${e.message}`);
+      core.warning(`Não consegui atribuir ${assignees.join(', ')}: ${e.message}`);
     }
   } else {
     const patch = {};

@@ -1,4 +1,6 @@
-# Só no vzla-backlog. Lógica em vizzela-labs/.github (reusable-issue-triage.yml + review/triagem.md).
+# Só no vzla-backlog. Lógica em vizzela-labs/.github:
+#   triagem → reusable-issue-triage.yml + review/triagem.md (issue aberta: perguntas)
+#   spec    → reusable-spec-draft.yml + review/spec.md (label quick-spec/spec/bugfix-spec: PR de spec no back)
 name: Triagem
 
 on:
@@ -17,3 +19,17 @@ jobs:
       id-token: write
     secrets:
       claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+
+  spec:
+    concurrency:
+      group: spec-${{ github.event.issue.number }}
+      cancel-in-progress: false
+    uses: vizzela-labs/.github/.github/workflows/reusable-spec-draft.yml@main
+    permissions:
+      contents: read
+      issues: write
+      id-token: write
+    secrets:
+      claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+      app_id: ${{ secrets.VZLA_APP_ID }}
+      app_private_key: ${{ secrets.VZLA_APP_PRIVATE_KEY }}

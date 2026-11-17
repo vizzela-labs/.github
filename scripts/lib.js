@@ -121,6 +121,10 @@ const OPENAPI_PATHS = {
   'vizzela-products-backend': '/api/docs-json',
   'vzla-zendesk-gateway': '/docs-json',
 };
+// Backs: onde as specs moram (specs/<nº>-slug/). A label `repo:<back>` na issue diz em qual
+// deles o PR de spec é aberto quando a issue recebe quick-spec / spec / bugfix-spec.
+const BACK_REPOS = ['vzla-cashback', 'vzla-tracking', 'vzla-data-hub', 'vizzela-products-backend', 'vzla-gerencial',
+  'vzla-marketplaces-api', 'vizzela-sales-dash', 'vzla-zendesk-gateway', 'vzla-lojas-api', 'vizzela-data-adm', 'vz-ra'];
 /** URL do preview anunciada no comentário do Coolify, se o deploy terminou bem. */
 function parseCoolifyReady(body) {
   if (!/preview deployment .* is ready/i.test(body || '')) return null;
@@ -185,5 +189,6 @@ module.exports = {
   previewUrl,
   PREVIEWS,
   OPENAPI_PATHS,
+  BACK_REPOS,
   parseCoolifyReady,
 };

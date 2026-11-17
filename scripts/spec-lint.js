@@ -76,6 +76,12 @@ function lintSpec(files) {
     for (const l of open) errors.push(`${name}: pendência em aberto: "${l.trim().slice(0, 120)}"`);
   }
 
+  // A tabela "## Branches" é o plano de execução: no merge da spec, cada linha vira uma branch.
+  if (has('tarefas.md')) {
+    const { parseBranches } = require('./spec-plan.js'); // aqui dentro: spec-plan.js também usa este arquivo
+    errors.push(...parseBranches(files['tarefas.md']).errors);
+  }
+
   if (has('requisitos.md') && !has('tarefas.md')) warnings.push('sem tarefas.md (ok para quick-spec)');
   if (has('requisitos.md') && !has('contrato.yaml')) warnings.push('sem contrato.yaml (ok se a feature não muda API)');
 
