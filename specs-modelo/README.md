@@ -21,7 +21,7 @@ Normalmente você não copia nada: a label `quick-spec`, `spec` ou `bugfix-spec`
 |---|---|
 | **Spec: formato** | Requisitos no formato EARS; bugfix com HOJE, ESPERADO e INALTERADO; `tarefas.md` com a tabela **Branches**; nenhum `[PERGUNTA]`, `TODO` ou `?` no ESPERADO |
 | **Spec: contrato** | `contrato.yaml` válido (Redocly, regras mínimas) e sem quebra em relação à `dev` (oasdiff; com `!` no título, só avisa) |
-| **Spec: aprovações** | 2 aprovações (back e front) |
+| **Spec: aprovações** | 1 aprovação (back ou front), de quem não é o autor |
 
 Todos avisam, nenhum bloqueia.
 

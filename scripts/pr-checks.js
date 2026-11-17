@@ -1,7 +1,7 @@
 // Regras do fluxo que viram checks no PR. Nenhuma bloqueia o merge (plano Free):
 // o check fica vermelho e avisa. Roda com o GITHUB_TOKEN do repo.
 //   como-testar  → a seção "Como testar" do PR não pode estar vazia
-//   spec         → PR que mexe em specs/ precisa de 2 aprovações (back e front)
+//   spec         → PR que mexe em specs/ precisa de SPEC_APPROVALS aprovação(ões) de outro dev
 //   spec-formato → requisitos em EARS, bugfix com HOJE/ESPERADO/INALTERADO, sem pergunta em aberto;
 //                  devolve em `contratos` os contrato.yaml para o Redocly validar
 //   migration    → migration que apaga ou reescreve dado: backup antes da release e aviso no PR
@@ -9,6 +9,10 @@
 //   revisor      → sorteia outro dev para revisar, se ninguém foi pedido ainda
 const lib = require('./lib.js');
 const { specDirs, lintSpec, isMigrationPath, destructiveOps } = require('./spec-lint.js');
+
+// Quantas aprovações uma spec pede (sem contar o autor). Era 2 (back e front); desde 17/11/2026
+// basta 1, enquanto o time avalia se a revisão dupla compensa.
+const SPEC_APPROVALS = 1;
 
 const TRUNK = 'dev';
 const PROD = 'main';
@@ -45,9 +49,10 @@ module.exports = async ({ github, context, core, mode }) => {
       last.set(r.user.login, r.state);
     }
     const approvers = [...last].filter(([, s]) => s === 'APPROVED').map(([l]) => l);
-    if (approvers.length < 2) {
+    if (approvers.length < SPEC_APPROVALS) {
+      const precisa = SPEC_APPROVALS === 1 ? '1 aprovação (back ou front)' : `${SPEC_APPROVALS} aprovações`;
       return core.setFailed(
-        `Spec precisa da aprovação de 2 devs (back e front); tem ${approvers.length}` +
+        `Spec precisa de ${precisa}, de alguém que não seja o autor; tem ${approvers.length}` +
           `${approvers.length ? ` (${approvers.join(', ')})` : ''}. O merge não está bloqueado, mas o combinado é esperar.`,
       );
     }

@@ -37,6 +37,6 @@ for c in "${CONTRATOS[@]}"; do
   [ $rc -ne 0 ] && detalhes+=$'\n'"### \`$c\`"$'\n\n```\n'"$(printf '%s\n' "$out" | head -60)"$'\n```\n'
 done
 if [ -n "$detalhes" ]; then
-  printf '\n## O que o preview não cumpre\n%s\nOu o código está errado, ou o contrato mudou: nesse caso, atualize o contrato.yaml num PR de spec (2 aprovações).\n' "$detalhes" >> "$RESUMO"
+  printf '\n## O que o preview não cumpre\n%s\nOu o código está errado, ou o contrato mudou: nesse caso, atualize o contrato.yaml num PR de spec (1 aprovação).\n' "$detalhes" >> "$RESUMO"
 fi
 echo "status=$status" >> "$GITHUB_OUTPUT"

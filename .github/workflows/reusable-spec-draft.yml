@@ -128,7 +128,7 @@ jobs:
               const hit = Array.isArray(dirs) && dirs.find((d) => d.type === 'dir' && d.name.startsWith(prefix));
               if (hit) {
                 await say('<!-- vzla:spec-existe -->',
-                  `Já existe \`specs/${hit.name}/\` na \`dev\` do ${back}. Para mudar a spec, abra um PR de spec à mão (2 aprovações, back e front).`);
+                  `Já existe \`specs/${hit.name}/\` na \`dev\` do ${back}. Para mudar a spec, abra um PR de spec à mão (1 aprovação, back ou front).`);
                 return core.setOutput('ok', 'false');
               }
             } catch (e) {
@@ -236,7 +236,7 @@ jobs:
             echo; echo "## Por quê"; echo
             echo "Spec gerada automaticamente da issue e da triagem, a partir do código da \`dev\`. Ela é o contrato entre back e front: depois de aprovada, cada linha da tabela **Branches** do \`tarefas.md\` vira uma branch."
             echo; echo "## Como testar"; echo
-            echo "Spec não tem ambiente. Leia \`$DIR/\`, responda as perguntas do primeiro comentário e peça \`@claude corrija aplique as respostas\`. Sem nenhum \`[PERGUNTA]\`, o check **Spec: formato** fica verde: tire do rascunho e aprove (back e front)."
+            echo "Spec não tem ambiente. Leia \`$DIR/\`, responda as perguntas do primeiro comentário e peça \`@claude corrija aplique as respostas\`. Sem nenhum \`[PERGUNTA]\`, o check **Spec: formato** fica verde: tire do rascunho e peça 1 aprovação (back ou front)."
             echo; echo "## Issue-mãe"; echo
             echo "Issue-mãe: vzla-backlog#$ISSUE"
             echo; echo "🤖 Generated with [Claude Code](https://claude.com/claude-code)"
@@ -250,7 +250,7 @@ jobs:
             gh pr comment "$pr" -R "vizzela-labs/$BACK" --body-file /tmp/spec/perguntas.md
           fi
 
-          # Revisores: quem está na issue e os donos da tabela Branches (back e front aprovam).
+          # Revisores: quem está na issue e os donos da tabela Branches (um deles aprova).
           reviewers=$( (gh issue view "$ISSUE" -R "$HUB" --json assignees --jq '.assignees[].login'
             node -e "
               const fs = require('fs'); const plan = require('../.vzla/scripts/spec-plan.js'); const p = process.argv[1];
@@ -264,6 +264,6 @@ jobs:
           perguntas=$(grep -ro '\[PERGUNTA' "$DIR" | wc -l | tr -d ' ' || true)
           gh issue comment "$ISSUE" -R "$HUB" --body "<!-- vzla:spec-pr -->
           ### 📐 Spec em PR: $url
-          O Claude escreveu \`$DIR/\` no **$BACK** a partir da issue, da triagem e do código. ${perguntas:-0} pergunta(s) em aberto: responda no PR, peça \`@claude corrija aplique as respostas\` e, com o check **Spec: formato** verde, tire do rascunho e aprove (back e front).
+          O Claude escreveu \`$DIR/\` no **$BACK** a partir da issue, da triagem e do código. ${perguntas:-0} pergunta(s) em aberto: responda no PR, peça \`@claude corrija aplique as respostas\` e, com o check **Spec: formato** verde, tire do rascunho e peça 1 aprovação (back ou front).
 
           No merge, cada linha da tabela **Branches** do \`tarefas.md\` vira uma branch, e esta issue recebe o prompt para o seu Claude."

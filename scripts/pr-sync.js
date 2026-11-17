@@ -349,7 +349,7 @@ module.exports = async ({ github, context, core }) => {
     }
     const merged = Boolean(pr.merged);
     if (merged && toTrunk && (await specOnly())) {
-      // Spec não vai para produção nem tem o que testar: o merge com as 2 aprovações é o pronto
+      // Spec não vai para produção nem tem o que testar: o merge com a aprovação é o pronto
       // dela. A sub-issue fecha como concluída (fica no histórico da mãe), sem QA, e a release
       // não a reabre. A mãe sai de Spec e vai para Todo: back e front começam.
       await setStatus(issue.node_id, PROJECT.done);
